@@ -1,190 +1,74 @@
-#include <iostream>
-#include <string>
-#include <unordered_map>
-#include <memory>
-#include <vector>
+#pragma once
+#include "Character.h"
 
-class Summon {
-protected:
-    std::string name;
-    double current_hp;
-    double max_hp;
-    int control;    // 控制能力
-    int stealth;    // 潜行能力
-    
-    // 印记效果
-    std::unordered_map<std::string, double> imprints;
-    
-    // 技能列表
-    // 感觉没有必要 
-    /*std::vector<std::string> skills;*/
+/*
+ * Summon 派生类
+ * - 表示召唤物，行为类似于原先的 Summon 类
+ * - 可以重写 onSummon/onDestroy/takeDamage 等行为
+ *
+ * 改进点：
+ * - 改进了摧毁检测逻辑，确保只在状态变化时触发 onDestroy
+ * - 支持带目标的技能施放
+ */
 
+class Summon : public Character {
 public:
-    // 构造函数
-    Summon(const std::string& summon_name, double max_health, int ctrl, int stlth)
-        : name(summon_name), max_hp(max_health), current_hp(max_health), 
-          control(ctrl), stealth(stlth) {}
-    
-    // 虚析构函数
+    Summon() = default;
+
+    Summon(const std::string& summon_name, int max_health, int ctrl = 0, int stlth = 0)
+        : Character(summon_name, max_health, ctrl, stlth) {}
+
     virtual ~Summon() = default;
-    
-    // 纯虚函数 - 技能相关，子类必须实现
-    // 玩家类里忘说了，那个learnSkill感觉用不到
-	// 我们只需要 override一个函数就行
-	// 这里面也是，上面的技能表用不到 
-    virtual void useSkill(const std::string& skill_name) = 0;
-    virtual void useSkill(int skill_index) = 0;
-    
-    // 虚函数 - 可以有默认实现，子类可以重写
-    virtual void takeDamage(double damage) {
-        current_hp -= damage;
-        if (current_hp < 0) current_hp = 0;
-        std::cout << name << "受到了 " << damage << " 点伤害，当前生命值: " 
-                  << current_hp << "/" << max_hp << std::endl;
-        
-        // 检查是否被摧毁
-        if (current_hp <= 0) {
-            std::cout << name << "被摧毁了！" << std::endl;
-        }
+
+    // 子类必须实现的技能释放（此处提供默认示例）
+    virtual void useSkill(const std::string& skill_name) override {
+        useSkill(skill_name, *this); // 默认目标为自己
     }
     
-    virtual void heal(double amount) {
-        current_hp += amount;
-        if (current_hp > max_hp) current_hp = max_hp;
-        std::cout << name << "恢复了 " << amount << " 点生命值，当前生命值: " 
-                  << current_hp << "/" << max_hp << std::endl;
-    }
-    
-    // 印记管理
-    virtual void addImprint(const std::string& imprint, double value) {
-        imprints[imprint] = value;
-        std::cout << name << "获得了 " << imprint << " 印记，值: " << value << std::endl;
-    }
-    
-    virtual double getImprint(const std::string& imprint) const {
-        auto it = imprints.find(imprint);
-        return (it != imprints.end()) ? it->second : 0.0;
-    }
-    
-    virtual void removeImprint(const std::string& imprint) {
-        imprints.erase(imprint);
-        std::cout << name << "移除了 " << imprint << " 印记" << std::endl;
-    }
-    
-    virtual void clearAllImprints() {
-        imprints.clear();
-        std::cout << name << "的所有印记被清除了" << std::endl;
-    }
-    
-    // 技能管理
-    // 没啥用，技能自己实现就好
-    virtual void learnSkill(const std::string& skill_name) {
-        skills.push_back(skill_name);
-        std::cout << name << "学会了技能: " << skill_name << std::endl;
-    }
-    
-    virtual bool hasSkill(const std::string& skill_name) const {
-        for (const auto& skill : skills) {
-            if (skill == skill_name) return true;
-        }
-        return false;
-    }
-    
-    virtual const std::vector<std::string>& getSkills() const {
-        return skills;
-    }
-    
-    virtual int getSkillCount() const {
-        return skills.size();
-    }
-    
-    // 属性获取和设置
-    virtual double getCurrentHP() const { return current_hp; }
-    virtual double getMaxHP() const { return max_hp; }
-    virtual int getControl() const { return control; }
-    virtual int getStealth() const { return stealth; }
-    virtual const std::string& getName() const { return name; }
-    
-    virtual void setCurrentHP(double hp) { 
-        current_hp = hp; 
-        if (current_hp > max_hp) current_hp = max_hp;
-        if (current_hp < 0) current_hp = 0;
-    }
-    //同样伞兵，不知所云 
-    /*virtual void setMaxHP(double hp) { 
-        max_hp = hp; 
-        if (current_hp > max_hp) current_hp = max_hp;
-    }*/
-    
-    virtual void setControl(int ctrl) { control = ctrl; }
-    virtual void setStealth(int stlth) { stealth = stlth; }
-    
-    // 状态检查
-    virtual bool isAlive() const { return current_hp > 0; }
-    virtual bool isFullHealth() const { return current_hp >= max_hp; }
-    virtual bool isDestroyed() const { return current_hp <= 0; }
-    
-    // 召唤物特殊状态
-    virtual bool canAct() const { 
-        return isAlive() && getImprint("眩晕") == 0 && getImprint("冻结") == 0;
-    }
-    
-    // 显示召唤物信息
-    // python里没有析构，我想起来了，那个是自动管理 
-    // C++里别忘了析构 
-    virtual void displayStatus() const {
-        std::cout << "=== " << name << " 状态 ===" << std::endl;
-        std::cout << "生命值: " << current_hp << "/" << max_hp;
-        if (isDestroyed()) {
-            std::cout << " [已摧毁]";
-        }
-        std::cout << std::endl;
-        std::cout << "控制: " << control << std::endl;
-        std::cout << "潜行: " << stealth << std::endl;
-        
-        if (!skills.empty()) {
-            std::cout << "技能: ";
-            for (size_t i = 0; i < skills.size(); ++i) {
-                std::cout << skills[i];
-                if (i < skills.size() - 1) std::cout << ", ";
-            }
-            std::cout << std::endl;
+    // 带目标的技能使用
+    virtual void useSkill(const std::string& skill_name, Character& target) override {
+        if (skill_name.empty()) {
+            std::cout << "技能名为空，无法施放" << std::endl;
+            return;
         }
         
-        if (!imprints.empty()) {
-            std::cout << "印记: ";
-            for (const auto& imp : imprints) {
-                std::cout << imp.first << "(" << imp.second << ") ";
-            }
-            std::cout << std::endl;
+        // 使用更安全的技能访问方式
+        auto skill_opt = getSkill(skill_name);
+        if (!skill_opt) {
+            std::cout << name_ << " 没有技能: " << skill_name << std::endl;
+            return;
         }
         
-        std::cout << "可行动: " << (canAct() ? "是" : "否") << std::endl;
+        Skill& skill = skill_opt->get();
+        if (!skill.isAvailable()) {
+            std::cout << "技能 " << skill_name << " 在冷却中 (CD:" << skill.getCooldown() << ")\n";
+            return;
+        }
+
+        // 执行技能（包含目标信息）
+        bool ok = skill.execute(*this, &target);
+        if (ok) {
+            std::cout << name_ << " 对 " << target.getName() << " 施放了技能 " << skill_name << std::endl;
+        }
     }
-    
-    // 召唤物特殊行为
-    virtual void onSummon() {
-        std::cout << name << "被召唤到战场！" << std::endl;
-    }
-    
-    virtual void onDestroy() {
-        std::cout << name << "从战场上消失！" << std::endl;
-    }
-    // 不知道为什么召唤物还有回合，看情况决定删不删 
-    virtual void onTurnStart() {
-        std::cout << name << "的回合开始" << std::endl;
+
+    // 重写 takeDamage 实现更安全的摧毁回调
+    virtual void takeDamage(int damage) override {
+        bool wasAlive = isAlive(); // 记录受伤前状态
         
-        // 回合开始时可以处理一些印记效果，比如持续伤害等
-        // 多此一举，不过别忘了持续伤害应该算一种印记 
-        /*if (getImprint("燃烧") > 0) {
-            double burnDamage = getImprint("燃烧");
-            std::cout << name << "受到燃烧效果，受到 " << burnDamage << " 点伤害" << std::endl;
-            takeDamage(burnDamage);
-        }*/
+        Character::takeDamage(damage);
+        
+        // 基类已处理摧毁回调，这里可以添加召唤物特有的逻辑
+        if (wasAlive && isDestroyed()) {
+            std::cout << "召唤物 " << name_ << " 被摧毁！" << std::endl;
+        }
     }
-    
-    virtual void onTurnEnd() {
-        std::cout << name << "的回合结束" << std::endl;
+
+    virtual void onSummon() override {
+        std::cout << name_ << " 被召唤到战场（Summon::onSummon）！" << std::endl;
+    }
+
+    virtual void onDestroy() override {
+        std::cout << name_ << " 从战场上消失（Summon::onDestroy）！" << std::endl;
     }
 };
- 
