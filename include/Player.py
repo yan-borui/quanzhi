@@ -9,8 +9,6 @@ Player 派生类
 """
 
 from Character import Character
-from Skill import Skill
-from typing import Optional
 
 
 class Player(Character):
@@ -40,6 +38,6 @@ class Player(Character):
             return
 
         # 执行技能（包含目标信息）
-        ok = skill.execute(self, target)
+        ok = skill.execute(self)
         if ok:
             print(f"{self.name} 对 {target.get_name()} 施放了技能 {skill_name}")

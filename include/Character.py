@@ -14,10 +14,10 @@ Character 抽象基类
 - 改进了摧毁状态的检测逻辑
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Optional, Union
-import sys
 import os
+import sys
+from abc import ABC, abstractmethod
+from typing import Dict, Optional
 
 # 添加Skill模块的导入路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))

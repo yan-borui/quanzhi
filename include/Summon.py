@@ -9,8 +9,6 @@ Summon ≈……˙¿‡
 """
 
 from Character import Character
-from Skill import Skill
-from typing import Optional
 
 
 class Summon(Character):

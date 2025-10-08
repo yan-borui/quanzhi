@@ -13,7 +13,8 @@ Skill 类
 - 增加了施法者和目标参数，使技能能够影响具体角色
 """
 
-from typing import Callable, Optional, Any
+from typing import Callable, Optional
+
 from Character import Character
 
 
