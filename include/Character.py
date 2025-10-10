@@ -17,7 +17,7 @@ Character 抽象基类
 import os
 import sys
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 # 添加Skill模块的导入路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -35,6 +35,7 @@ class Character(ABC):
         self.skills: Dict[str, Skill] = {}
         self.imprints: Dict[str, int] = {}
         self.accumulations: Dict[str, int] = {}
+        self.nearby_characters: List['Character'] = []
 
     # 子类必须实现技能使用
     @abstractmethod
