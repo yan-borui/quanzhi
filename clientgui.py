@@ -8,6 +8,7 @@ from PySide6.QtGui import QImage, QPixmap, QPainter
 import pygame
 HOST = 'frp-oil.com'
 PORT = 63867
+started = threading.Event()
 closed = threading.Event()
 readqueue = queue.Queue()
 quandict = {"剪刀":"0","石头":"1","布":"2"}
@@ -16,7 +17,8 @@ def reader(s):
     with s.makefile('r', encoding='utf-8') as f:
         while True:
             msg = f.readline().strip()
-            print(msg)
+            if msg == "游戏开始！":
+                started.set()
             if not msg:
                 break
             readqueue.put(msg)
@@ -46,7 +48,7 @@ class PygButton:
             surf.blit(txt_surf, tr)
 
     def handle_mouse_down(self, pos, button=1):
-        if button == 1 and self.rect.collidepoint(pos):
+        if started.is_set() and button == 1 and self.rect.collidepoint(pos):
             self._down = True
             return True
         return False
