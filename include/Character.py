@@ -27,11 +27,11 @@ from Behavior import BehaviorType
 
 
 class Character(ABC):
-    def __init__(self, name: str = "", max_hp: int = 0, control: int = 0, stealth: int = 0):
+    def __init__(self, name: str = "", max_hp: int = 0, control: Dict[str, int] = None, stealth: int = 0):
         self.name = name
         self.max_hp = max(0, max_hp)
         self.current_hp = max(0, self.max_hp)
-        self.control = control
+        self.control = control if control is not None else {}
         self.stealth = stealth
 
         self.skills: Dict[str, Skill] = {}
@@ -160,6 +160,52 @@ class Character(ABC):
     def get_skill(self, skill_name: str) -> Optional[Skill]:
         return self.skills.get(skill_name)
 
+    # 控制效果管理
+    def add_control(self, control_name: str, stacks: int = 1):
+        """添加控制效果"""
+        if not control_name:
+            return
+        if control_name in self.control:
+            self.control[control_name] += stacks
+        else:
+            self.control[control_name] = stacks
+        print(f"{self.name} 获得了 {control_name} 控制效果，层数: {self.control[control_name]}")
+
+    def get_control(self, control_name: str = None) -> int:
+        """获取控制效果层数，如果不指定控制名称则返回总控制层数"""
+        if control_name:
+            return self.control.get(control_name, 0)
+        else:
+            return sum(self.control.values())
+
+    def has_control(self, control_name: str) -> bool:
+        """检查是否有特定的控制效果"""
+        return self.get_control(control_name) > 0
+
+    def reduce_control(self, control_name: str, stacks: int = 1):
+        """减少控制效果层数"""
+        if control_name not in self.control:
+            print(f"{self.name} 没有控制效果: {control_name}")
+            return
+
+        self.control[control_name] -= stacks
+        if self.control[control_name] <= 0:
+            del self.control[control_name]
+            print(f"{self.name} 清除了 {control_name} 控制效果")
+        else:
+            print(f"{self.name} 减少了 {control_name} 控制效果，剩余层数: {self.control[control_name]}")
+
+    def clear_control(self, control_name: str):
+        """清除特定的控制效果"""
+        if control_name in self.control:
+            del self.control[control_name]
+            print(f"{self.name} 清除了 {control_name} 控制效果")
+
+    def clear_all_controls(self):
+        """清除所有控制效果"""
+        self.control.clear()
+        print(f"{self.name} 清除了所有控制效果")
+
     # 印记管理（get/set/remove/clear）
     def add_imprint(self, imprint: str, value: int):
         if not imprint:
@@ -224,8 +270,9 @@ class Character(ABC):
     def get_max_hp(self) -> int:
         return self.max_hp
 
-    def get_control(self) -> int:
-        return self.control
+    def get_control_dict(self) -> Dict[str, int]:
+        """获取控制效果字典"""
+        return self.control.copy()
 
     def get_stealth(self) -> int:
         return self.stealth
@@ -241,8 +288,9 @@ class Character(ABC):
         if self.current_hp > self.max_hp:
             self.current_hp = self.max_hp
 
-    def set_control(self, ctrl: int):
-        self.control = ctrl
+    def set_control_dict(self, control_dict: Dict[str, int]):
+        """设置控制效果字典"""
+        self.control = control_dict.copy()
 
     def set_stealth(self, stlth: int):
         self.stealth = stlth
@@ -258,7 +306,7 @@ class Character(ABC):
         return self.current_hp <= 0
 
     def can_act(self) -> bool:
-        return self.is_alive() and self.control == 0
+        return self.is_alive() and len(self.control) == 0
 
     # 输出状态
     def display_status(self):
@@ -267,7 +315,15 @@ class Character(ABC):
         if self.is_destroyed():
             print(" [已摧毁]", end="")
         print()
-        print(f"控制: {self.control}")
+
+        if self.control:
+            print("控制效果: ", end="")
+            for control_name, stacks in self.control.items():
+                print(f"{control_name}({stacks}) ", end="")
+            print()
+        else:
+            print("控制效果: 无")
+
         print(f"潜行: {self.stealth}")
 
         if self.skills:

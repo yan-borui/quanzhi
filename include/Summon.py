@@ -12,8 +12,8 @@ from Character import Character
 
 
 class Summon(Character):
-    def __init__(self, summon_name: str = "", max_health: int = 0, ctrl: int = 0, stlth: int = 0):
-        super().__init__(summon_name, max_health, ctrl, stlth)
+    def __init__(self, summon_name: str = "", max_health: int = 0, control: dict = None, stlth: int = 0):
+        super().__init__(summon_name, max_health, control, stlth)
 
     # 子类必须实现的技能释放（此处提供默认示例）
     def use_skill(self, skill_name: str):

@@ -12,8 +12,8 @@ from Character import Character
 
 
 class Player(Character):
-    def __init__(self, player_name: str = "", max_health: int = 0, ctrl: int = 0, stlth: int = 0):
-        super().__init__(player_name, max_health, ctrl, stlth)
+    def __init__(self, player_name: str = "", max_health: int = 0, control: dict = None, stlth: int = 0):
+        super().__init__(player_name, max_health, control, stlth)
         # 如果玩家需要初始化 accumulations 或通知服务器 imprints，
         # 在高层逻辑中处理（这里仅做本地初始化）
 
