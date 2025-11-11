@@ -158,7 +158,7 @@ class Game:
         print("\n=== 游戏结束 ===")
         if len(self.alive_characters) == 1:
             winner = self.alive_characters[0]
-            print(f"🎉 胜利者: {winner.name} 🎉")
+            print(f"胜利者: {winner.name}")
         else:
             print("平局！所有角色都被摧毁了")
 
