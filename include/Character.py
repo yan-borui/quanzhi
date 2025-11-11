@@ -12,6 +12,7 @@ Character 抽象基类
 - 使用 Optional 提供更安全的技能访问
 - 增加了类型注解
 - 改进了摧毁状态的检测逻辑
+- 添加了行为系统和邻接表管理
 """
 
 import os
@@ -22,6 +23,7 @@ from typing import Dict, Optional, List
 # 添加Skill模块的导入路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from Skill import Skill
+from Behavior import BehaviorType
 
 
 class Character(ABC):
@@ -36,6 +38,7 @@ class Character(ABC):
         self.imprints: Dict[str, int] = {}
         self.accumulations: Dict[str, int] = {}
         self.nearby_characters: List['Character'] = []
+        self.current_behavior: Optional[BehaviorType] = None
 
     # 子类必须实现技能使用
     @abstractmethod
@@ -46,6 +49,53 @@ class Character(ABC):
     def use_skill_on_target(self, skill_name: str, target: 'Character'):
         # 默认实现忽略目标，子类可以重写
         self.use_skill(skill_name)
+
+    def set_behavior(self, behavior: BehaviorType):
+        """设置当前行为"""
+        old_behavior = self.current_behavior
+        self.current_behavior = behavior
+        print(f"{self.name} 行为改变: {old_behavior} -> {behavior}")
+        self.on_behavior_change(old_behavior, behavior)
+
+    def get_behavior(self) -> Optional[BehaviorType]:
+        """获取当前行为"""
+        return self.current_behavior
+
+    def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
+        """行为改变时的回调，子类可重写"""
+        pass
+
+    # 邻接表管理
+    def add_nearby_character(self, character: 'Character'):
+        """添加附近角色"""
+        if character != self and character not in self.nearby_characters:
+            self.nearby_characters.append(character)
+            # 双向添加，确保双方都知道彼此在附近
+            if self not in character.nearby_characters:
+                character.add_nearby_character(self)
+            print(f"{self.name} 与 {character.name} 距离变近")
+
+    def remove_nearby_character(self, character: 'Character'):
+        """移除附近角色"""
+        if character in self.nearby_characters:
+            self.nearby_characters.remove(character)
+            # 双向移除
+            if self in character.nearby_characters:
+                character.remove_nearby_character(self)
+            print(f"{self.name} 与 {character.name} 距离变远")
+
+    def clear_nearby_characters(self):
+        """清空附近角色列表"""
+        for character in list(self.nearby_characters):
+            self.remove_nearby_character(character)
+
+    def get_nearby_characters(self) -> List['Character']:
+        """获取附近角色列表"""
+        return list(self.nearby_characters)
+
+    def is_nearby(self, character: 'Character') -> bool:
+        """检查是否在某个角色附近"""
+        return character in self.nearby_characters
 
     # 受伤并显示（确保边界）
     def take_damage(self, damage: int):
