@@ -37,7 +37,7 @@ class Character(ABC):
         self.skills: Dict[str, Skill] = {}
         self.imprints: Dict[str, int] = {}
         self.accumulations: Dict[str, int] = {}
-        self.nearby_characters: List['Character'] = []
+        self.nearby_characters: List['Character'] = [self]
         self.current_behavior: Optional[BehaviorType] = None
 
     # 子类必须实现技能使用
