@@ -70,7 +70,7 @@ class Knight(Character):
         if success:
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
-    def _fearless_charge_effect(self, target: Optional[Character]) -> bool:
+    def _fearless_charge_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """无畏冲锋效果：造成12点伤害"""
         if not target:
             return False
@@ -78,7 +78,7 @@ class Knight(Character):
         target.take_damage(12)
         return True
 
-    def _slash_effect(self, target: Optional[Character]) -> bool:
+    def _slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """斩效果：造成3点伤害"""
         if not target:
             return False
@@ -86,7 +86,7 @@ class Knight(Character):
         target.take_damage(3)
         return True
 
-    def _shield_effect(self) -> bool:
+    def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """盾效果：回退到上上回合的状态"""
         # 消耗一次使用次数
         self.shield_charges -= 1

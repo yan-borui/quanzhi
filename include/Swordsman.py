@@ -73,7 +73,7 @@ class Swordsman(Character):
         if success:
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
-    def _effortless_slash_effect(self, target: Optional[Character]) -> bool:
+    def _effortless_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """游刃斩效果：造成6点伤害并添加剑意印记"""
         if not target:
             return False
@@ -82,7 +82,7 @@ class Swordsman(Character):
         target.add_imprint("剑意", 1)
         return True
 
-    def _whirlwind_slash_effect(self, target: Optional[Character]) -> bool:
+    def _whirlwind_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """回旋斩效果：造成6点伤害并添加剑意印记（只能攻击附近目标）"""
         if not target:
             return False
@@ -91,7 +91,7 @@ class Swordsman(Character):
         target.add_imprint("剑意", 1)
         return True
 
-    def _lightning_strike_effect(self, target: Optional[Character]) -> bool:
+    def _lightning_strike_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """闪电劈效果：施加控制效果"""
         if not target:
             return False
@@ -100,7 +100,7 @@ class Swordsman(Character):
         target.add_control("lightning_strike", 1)
         return True
 
-    def _invincible_thrust_effect(self, target: Optional[Character]) -> bool:
+    def _invincible_thrust_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """无敌刺效果：造成42点伤害"""
         if not target:
             return False

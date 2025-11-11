@@ -58,19 +58,19 @@ class Summoner(Character):
         if success:
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
-    def _wolf_effect(self) -> bool:
+    def _wolf_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """狼效果：给自己加一个狼积累"""
         self.add_accumulation("狼", 1)
         print(f"{self.name} 召唤了一只狼，当前狼积累: {self.get_accumulation('狼')}")
         return True
 
-    def _bear_effect(self) -> bool:
+    def _bear_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """熊效果：给自己加一个熊积累"""
         self.add_accumulation("熊", 1)
         print(f"{self.name} 召唤了一只熊，当前熊积累: {self.get_accumulation('熊')}")
         return True
 
-    def _coordinated_attack_effect(self, target: Optional[Character]) -> bool:
+    def _coordinated_attack_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """齐攻效果：消耗四只狼或者四只熊，造成30点伤害"""
         if not target:
             return False
