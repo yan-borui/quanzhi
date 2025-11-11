@@ -14,14 +14,12 @@ Skill 类
 - 增加了施法者和目标参数，使技能能够影响具体角色
 """
 
-from typing import Callable, Optional
-
-from Character import Character
+from typing import Callable, Optional, Any
 
 
 class Skill:
     def __init__(self, name: str = "", cooldown: int = 0,
-                 effect: Optional[Callable[[Character, Optional[Character]], bool]] = None):
+                 effect: Optional[Callable[[Any, Optional[Any]], bool]] = None):
         self.name = name
         self.base_cooldown = max(0, cooldown)
         self.cooldown = 0
@@ -61,17 +59,17 @@ class Skill:
         return self.cooldown == 0
 
     # 设置技能效果回调
-    def set_effect(self, effect: Callable[[Character, Optional[Character]], bool]):
+    def set_effect(self, effect: Callable[[Any, Optional[Any]], bool]):
         self.effect = effect
 
     # 执行技能 - 基础版本，需要施法者参数
     # 返回是否成功施放
-    def execute(self, caster: Character) -> bool:
+    def execute(self, caster: Any) -> bool:
         return self.execute_with_target(caster, None)
 
     # 执行技能 - 完整版本，包含施法者和目标
     # 返回是否成功施放
-    def execute_with_target(self, caster: Character, target: Optional[Character]) -> bool:
+    def execute_with_target(self, caster: Any, target: Optional[Any]) -> bool:
         if not self.is_available():
             print(f"技能 {self.name} 在冷却中 (CD:{self.cooldown})")
             return False

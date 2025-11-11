@@ -16,13 +16,8 @@ Character 抽象基类
 - 添加了行为系统和邻接表管理
 """
 
-import os
-import sys
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
-
-# 添加Skill模块的导入路径
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from Skill import Skill
 from Behavior import BehaviorType
 
