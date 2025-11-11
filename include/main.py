@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # main.py
 import random
 from Knight import Knight
@@ -7,113 +8,113 @@ from Swordsman import Swordsman
 
 class Game:
     def __init__(self):
-        # ³õÊ¼»¯Èı¸ö½ÇÉ«
-        self.knight = Knight("ÆïÊ¿")
-        self.summoner = Summoner("ÕÙ»½Ê¦")
-        self.swordsman = Swordsman("½£¿Í")
+        # åˆå§‹åŒ–ä¸‰ä¸ªè§’è‰²
+        self.knight = Knight("éª‘å£«")
+        self.summoner = Summoner("å¬å”¤å¸ˆ")
+        self.swordsman = Swordsman("å‰‘å®¢")
 
-        # ËùÓĞ½ÇÉ«µÄÁĞ±í
+        # æ‰€æœ‰è§’è‰²çš„åˆ—è¡¨
         self.all_characters = [self.knight, self.summoner, self.swordsman]
 
-        # ´æ»î½ÇÉ«ÁĞ±í
+        # å­˜æ´»è§’è‰²åˆ—è¡¨
         self.alive_characters = self.all_characters.copy()
 
-        # »ØºÏ¼ÆÊıÆ÷
+        # å›åˆè®¡æ•°å™¨
         self.round_count = 0
 
     def get_random_alive_character(self):
-        """Ëæ»ú»ñÈ¡Ò»¸ö´æ»îµÄ½ÇÉ«"""
+        """éšæœºè·å–ä¸€ä¸ªå­˜æ´»çš„è§’è‰²"""
         return random.choice(self.alive_characters) if self.alive_characters else None
 
     def get_random_target(self, attacker):
-        """Îª¹¥»÷ÕßËæ»úÑ¡ÔñÒ»¸öÄ¿±ê£¨²»ÄÜÊÇ×Ô¼º£©"""
+        """ä¸ºæ”»å‡»è€…éšæœºé€‰æ‹©ä¸€ä¸ªç›®æ ‡ï¼ˆä¸èƒ½æ˜¯è‡ªå·±ï¼‰"""
         possible_targets = [char for char in self.alive_characters if char != attacker]
         return random.choice(possible_targets) if possible_targets else None
 
     def get_random_skill(self, character):
-        """Ëæ»ú»ñÈ¡½ÇÉ«¿ÉÓÃµÄ¼¼ÄÜ"""
+        """éšæœºè·å–è§’è‰²å¯ç”¨çš„æŠ€èƒ½"""
         available_skills = []
 
         for skill_name, skill in character.skills.items():
-            # ÌØÊâ¼¼ÄÜÌõ¼ş¼ì²é
-            if skill_name == "¶Ü" and character.shield_charges <= 0:
+            # ç‰¹æ®ŠæŠ€èƒ½æ¡ä»¶æ£€æŸ¥
+            if skill_name == "ç›¾" and character.shield_charges <= 0:
                 continue
-            if skill_name == "Æë¹¥":
-                wolf_accum = character.get_accumulation("ÀÇ")
-                bear_accum = character.get_accumulation("ĞÜ")
+            if skill_name == "é½æ”»":
+                wolf_accum = character.get_accumulation("ç‹¼")
+                bear_accum = character.get_accumulation("ç†Š")
                 if wolf_accum < 4 and bear_accum < 4:
                     continue
-            if skill_name == "ÉÁµçÅü":
-                # ĞèÒª¼ì²éÊÇ·ñÓĞÄ¿±êÓĞ3²ã½£Òâ
+            if skill_name == "é—ªç”µåŠˆ":
+                # éœ€è¦æ£€æŸ¥æ˜¯å¦æœ‰ç›®æ ‡æœ‰3å±‚å‰‘æ„
                 has_valid_target = any(
-                    char.get_imprint("½£Òâ") >= 3 for char in self.alive_characters if char != character)
+                    char.get_imprint("å‰‘æ„") >= 3 for char in self.alive_characters if char != character)
                 if not has_valid_target:
                     continue
-            if skill_name == "ÎŞµĞ´Ì":
-                # ĞèÒª¼ì²éÊÇ·ñÓĞÄ¿±êÓĞÉÁµçÅü¿ØÖÆ
+            if skill_name == "æ— æ•Œåˆº":
+                # éœ€è¦æ£€æŸ¥æ˜¯å¦æœ‰ç›®æ ‡æœ‰é—ªç”µåŠˆæ§åˆ¶
                 has_valid_target = any(
                     char.has_control("lightning_strike") for char in self.alive_characters if char != character)
                 if not has_valid_target:
                     continue
 
-            # ¼ì²éÀäÈ´
+            # æ£€æŸ¥å†·å´
             if skill.is_available():
                 available_skills.append(skill_name)
 
         return random.choice(available_skills) if available_skills else None
 
     def update_alive_characters(self):
-        """¸üĞÂ´æ»î½ÇÉ«ÁĞ±í"""
+        """æ›´æ–°å­˜æ´»è§’è‰²åˆ—è¡¨"""
         self.alive_characters = [char for char in self.all_characters if char.is_alive()]
 
     def display_battle_status(self):
-        """ÏÔÊ¾Õ½¶·×´Ì¬"""
-        print(f"\n=== µÚ {self.round_count} »ØºÏ¿ªÊ¼ ===")
+        """æ˜¾ç¤ºæˆ˜æ–—çŠ¶æ€"""
+        print(f"\n=== ç¬¬ {self.round_count} å›åˆå¼€å§‹ ===")
         for char in self.all_characters:
-            status = "´æ»î" if char.is_alive() else "ÒÑ´İ»Ù"
+            status = "å­˜æ´»" if char.is_alive() else "å·²æ‘§æ¯"
             print(f"{char.name}: {char.current_hp}/{char.max_hp} HP [{status}]")
 
     def play_round(self):
-        """½øĞĞÒ»¸ö»ØºÏ"""
+        """è¿›è¡Œä¸€ä¸ªå›åˆ"""
         self.round_count += 1
         self.display_battle_status()
 
-        # Ã¿»ØºÏ¿ªÊ¼Ê±£¬ÆïÊ¿¼ÇÂ¼×´Ì¬
+        # æ¯å›åˆå¼€å§‹æ—¶ï¼Œéª‘å£«è®°å½•çŠ¶æ€
         if self.knight.is_alive():
             self.knight.on_turn_start()
 
-        # Ëæ»úÑ¡ÔñÒ»¸öĞĞ¶¯µÄ½ÇÉ«
+        # éšæœºé€‰æ‹©ä¸€ä¸ªè¡ŒåŠ¨çš„è§’è‰²
         attacker = self.get_random_alive_character()
         if not attacker:
             return False
 
-        # Ëæ»úÑ¡ÔñÒ»¸ö¼¼ÄÜ
+        # éšæœºé€‰æ‹©ä¸€ä¸ªæŠ€èƒ½
         skill_name = self.get_random_skill(attacker)
         if not skill_name:
-            print(f"{attacker.name} Ã»ÓĞ¿ÉÓÃ¼¼ÄÜ£¬Ìø¹ı±¾»ØºÏ")
+            print(f"{attacker.name} æ²¡æœ‰å¯ç”¨æŠ€èƒ½ï¼Œè·³è¿‡æœ¬å›åˆ")
             return True
 
-        # Ëæ»úÑ¡ÔñÄ¿±ê
+        # éšæœºé€‰æ‹©ç›®æ ‡
         target = self.get_random_target(attacker)
         if not target:
-            print(f"{attacker.name} Ã»ÓĞ¿ÉÓÃÄ¿±ê£¬Ìø¹ı±¾»ØºÏ")
+            print(f"{attacker.name} æ²¡æœ‰å¯ç”¨ç›®æ ‡ï¼Œè·³è¿‡æœ¬å›åˆ")
             return True
 
-        # Ê¹ÓÃ¼¼ÄÜ
-        print(f"\n{attacker.name} ×¼±¸Ê¹ÓÃ {skill_name} ¹¥»÷ {target.name}")
+        # ä½¿ç”¨æŠ€èƒ½
+        print(f"\n{attacker.name} å‡†å¤‡ä½¿ç”¨ {skill_name} æ”»å‡» {target.name}")
         attacker.use_skill_on_target(skill_name, target)
 
-        # ¸üĞÂ´æ»î×´Ì¬
+        # æ›´æ–°å­˜æ´»çŠ¶æ€
         self.update_alive_characters()
 
-        # ¼ì²éÓÎÏ·ÊÇ·ñ½áÊø
+        # æ£€æŸ¥æ¸¸æˆæ˜¯å¦ç»“æŸ
         if len(self.alive_characters) <= 1:
             return False
 
         return True
 
     def reset_game(self):
-        """ÖØÖÃÓÎÏ·×´Ì¬"""
+        """é‡ç½®æ¸¸æˆçŠ¶æ€"""
         for char in self.all_characters:
             char.current_hp = char.max_hp
             char.control.clear()
@@ -121,11 +122,11 @@ class Game:
             char.accumulations.clear()
             char.clear_nearby_characters()
 
-            # ÖØÖÃ½ÇÉ«ÌØ¶¨×´Ì¬
+            # é‡ç½®è§’è‰²ç‰¹å®šçŠ¶æ€
             if hasattr(char, 'reset_battle_round'):
                 char.reset_battle_round()
 
-            # ÖØÖÃËùÓĞ¼¼ÄÜÀäÈ´
+            # é‡ç½®æ‰€æœ‰æŠ€èƒ½å†·å´
             for skill in char.skills.values():
                 skill.set_cooldown(0)
 
@@ -133,54 +134,54 @@ class Game:
         self.round_count = 0
 
     def start_game(self):
-        """¿ªÊ¼ÓÎÏ·"""
-        print("=== Èı¹ú´óÕ½¿ªÊ¼ ===")
-        print("²ÎÕ½½ÇÉ«:")
+        """å¼€å§‹æ¸¸æˆ"""
+        print("=== ä¸‰å›½å¤§æˆ˜å¼€å§‹ ===")
+        print("å‚æˆ˜è§’è‰²:")
         for char in self.all_characters:
             print(f"- {char.name} ({char.max_hp} HP)")
 
-        # ³õÊ¼ÈÃËùÓĞ½ÇÉ«»¥ÏàÔÚ¸½½ü£¨¼ò»¯¾àÀë¹ÜÀí£©
+        # åˆå§‹è®©æ‰€æœ‰è§’è‰²äº’ç›¸åœ¨é™„è¿‘ï¼ˆç®€åŒ–è·ç¦»ç®¡ç†ï¼‰
         for i, char1 in enumerate(self.all_characters):
             for char2 in self.all_characters[i + 1:]:
                 char1.add_nearby_character(char2)
 
-        # ÓÎÏ·Ö÷Ñ­»·
+        # æ¸¸æˆä¸»å¾ªç¯
         while len(self.alive_characters) > 1:
             if not self.play_round():
                 break
 
-        # ÏÔÊ¾ÓÎÏ·½á¹û
+        # æ˜¾ç¤ºæ¸¸æˆç»“æœ
         self.display_game_result()
 
     def display_game_result(self):
-        """ÏÔÊ¾ÓÎÏ·½á¹û"""
-        print("\n=== ÓÎÏ·½áÊø ===")
+        """æ˜¾ç¤ºæ¸¸æˆç»“æœ"""
+        print("\n=== æ¸¸æˆç»“æŸ ===")
         if len(self.alive_characters) == 1:
             winner = self.alive_characters[0]
-            print(f"? Ê¤ÀûÕß: {winner.name} ?")
+            print(f"ğŸ‰ èƒœåˆ©è€…: {winner.name} ğŸ‰")
         else:
-            print("Æ½¾Ö£¡ËùÓĞ½ÇÉ«¶¼±»´İ»ÙÁË")
+            print("å¹³å±€ï¼æ‰€æœ‰è§’è‰²éƒ½è¢«æ‘§æ¯äº†")
 
-        print(f"×Ü»ØºÏÊı: {self.round_count}")
-        print("\n×îÖÕ×´Ì¬:")
+        print(f"æ€»å›åˆæ•°: {self.round_count}")
+        print("\næœ€ç»ˆçŠ¶æ€:")
         for char in self.all_characters:
-            status = "´æ»î" if char.is_alive() else "ÒÑ´İ»Ù"
+            status = "å­˜æ´»" if char.is_alive() else "å·²æ‘§æ¯"
             print(f"{char.name}: {char.current_hp}/{char.max_hp} HP [{status}]")
 
 
 def main():
-    """Ö÷º¯Êı"""
+    """ä¸»å‡½æ•°"""
     game = Game()
     game.start_game()
 
-    # ¿ÉÑ¡£ºÑ¯ÎÊÊÇ·ñÖØĞÂ¿ªÊ¼
+    # å¯é€‰ï¼šè¯¢é—®æ˜¯å¦é‡æ–°å¼€å§‹
     while True:
-        choice = input("\nÊÇ·ñÖØĞÂ¿ªÊ¼ÓÎÏ·£¿(y/n): ").lower()
+        choice = input("\næ˜¯å¦é‡æ–°å¼€å§‹æ¸¸æˆï¼Ÿ(y/n): ").lower()
         if choice == 'y':
             game.reset_game()
             game.start_game()
         else:
-            print("ÓÎÏ·½áÊø£¬ÔÙ¼û£¡")
+            print("æ¸¸æˆç»“æŸï¼Œå†è§ï¼")
             break
 
 

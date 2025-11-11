@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 # Behavior.py
 from enum import Enum
 
 
 class BehaviorType(Enum):
-    MOVE_CLOSE = "µ½ÄãÉí±ß"
-    MOVE_AWAY = "ÀëÄãÔ¶µã"
+    MOVE_CLOSE = "åˆ°ä½ èº«è¾¹"
+    MOVE_AWAY = "ç¦»ä½ è¿œç‚¹"
