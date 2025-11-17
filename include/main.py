@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # main.py
 import random
+from Behavior import BehaviorType
 from Knight import Knight
 from Summoner import Summoner
 from Swordsman import Swordsman
@@ -74,6 +75,11 @@ class Game:
             status = "存活" if char.is_alive() else "已摧毁"
             print(f"{char.name}: {char.current_hp}/{char.max_hp} HP [{status}]")
 
+    def reduce_all_cooldowns(self):
+        """所有角色的技能冷却减少1回合"""
+        for char in self.all_characters:
+            char.reduce_all_cooldowns()
+
     def play_round(self):
         """进行一个回合"""
         self.round_count += 1
@@ -88,21 +94,48 @@ class Game:
         if not attacker:
             return False
 
-        # 随机选择一个技能
-        skill_name = self.get_random_skill(attacker)
-        if not skill_name:
-            print(f"{attacker.name} 没有可用技能，跳过本回合")
-            return True
+        # 随机决定是使用技能还是执行行为（50%概率）
+        action_type = random.choice(["skill", "behavior"])
 
-        # 随机选择目标
-        target = self.get_random_target(attacker)
-        if not target:
-            print(f"{attacker.name} 没有可用目标，跳过本回合")
-            return True
+        if action_type == "skill":
+            # 使用技能的逻辑
+            skill_name = self.get_random_skill(attacker)
+            if not skill_name:
+                print(f"{attacker.name} 没有可用技能，跳过本回合")
+                return True
 
-        # 使用技能
-        print(f"\n{attacker.name} 准备使用 {skill_name} 攻击 {target.name}")
-        attacker.use_skill_on_target(skill_name, target)
+            # 随机选择目标
+            target = self.get_random_target(attacker)
+            if not target:
+                print(f"{attacker.name} 没有可用目标，跳过本回合")
+                return True
+
+            # 使用技能
+            print(f"\n{attacker.name} 使用技能 {skill_name} 攻击 {target.name}")
+            attacker.use_skill_on_target(skill_name, target)
+
+        else:
+            # 执行行为的逻辑
+            behavior = random.choice([BehaviorType.MOVE_CLOSE, BehaviorType.MOVE_AWAY])
+            target = self.get_random_target(attacker)
+
+            if not target:
+                print(f"{attacker.name} 没有可用目标，无法执行行为，跳过本回合")
+                return True
+
+            print(f"\n{attacker.name} 执行行为: {behavior.value} 针对 {target.name}")
+
+            if behavior == BehaviorType.MOVE_CLOSE:
+                # 靠近目标
+                attacker.add_nearby_character(target)
+                attacker.set_behavior(behavior)
+            else:
+                # 远离目标
+                attacker.remove_nearby_character(target)
+                attacker.set_behavior(behavior)
+
+        # 所有角色的技能冷却减少1回合
+        self.reduce_all_cooldowns()
 
         # 更新存活状态
         self.update_alive_characters()
@@ -139,11 +172,6 @@ class Game:
         print("参战角色:")
         for char in self.all_characters:
             print(f"- {char.name} ({char.max_hp} HP)")
-
-        # 初始让所有角色互相在附近（简化距离管理）
-        for i, char1 in enumerate(self.all_characters):
-            for char2 in self.all_characters[i + 1:]:
-                char1.add_nearby_character(char2)
 
         # 游戏主循环
         while len(self.alive_characters) > 1:

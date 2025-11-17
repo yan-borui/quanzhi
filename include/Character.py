@@ -50,7 +50,7 @@ class Character(ABC):
         """设置当前行为"""
         old_behavior = self.current_behavior
         self.current_behavior = behavior
-        print(f"{self.name} 行为改变: {old_behavior} -> {behavior}")
+        print(f"{self.name} 行为改变: {old_behavior.value} -> {behavior.value}")
         self.on_behavior_change(old_behavior, behavior)
 
     def get_behavior(self) -> Optional[BehaviorType]:
