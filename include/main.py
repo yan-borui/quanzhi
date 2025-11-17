@@ -149,6 +149,9 @@ class Game:
         self.round_count += 1
         self.display_battle_status()
 
+        # 新增：在回合开始时减少所有角色的技能冷却
+        self.reduce_all_cooldowns()
+
         # 每回合开始时，骑士记录状态
         if self.knight.is_alive():
             self.knight.on_turn_start()
@@ -158,8 +161,15 @@ class Game:
         if not attacker:
             return False
 
-        # 随机决定是使用技能还是执行行为（50%概率）
-        action_type = random.choice(["skill", "behavior"])
+        # 检查角色是否被控制
+        if attacker.is_controlled():
+            # 被控制时只能选择解控行为
+            print(f"{attacker.name} 被控制，本回合只能选择解控行为")
+            self.perform_remove_control_behavior(attacker)
+            return True
+
+        # 随机决定是使用技能、执行移动行为还是解控行为
+        action_type = random.choice(["skill", "move_behavior", "remove_control"])
 
         if action_type == "skill":
             # 使用技能的逻辑
@@ -178,31 +188,19 @@ class Game:
             print(f"\n{attacker.name} 使用技能 {skill_name} 攻击 {target.name}")
             attacker.use_skill_on_target(skill_name, target)
 
-        else:
-            # 执行行为的逻辑
-            behavior = random.choice([BehaviorType.MOVE_CLOSE, BehaviorType.MOVE_AWAY])
+        elif action_type == "move_behavior":
+            # 执行移动行为的逻辑
             target = self.get_random_target(attacker)
 
             if not target:
-                print(f"{attacker.name} 没有可用目标，无法执行行为，跳过本回合")
+                print(f"{attacker.name} 没有可用目标，无法执行移动行为，跳过本回合")
                 return True
 
-            print(f"\n{attacker.name} 执行行为: {behavior.value} 针对 {target.name}")
+            self.perform_random_move_behavior(attacker, target)
 
-            if behavior == BehaviorType.MOVE_CLOSE:
-                # 靠近目标：移动到目标所在的块
-                target_block_id = target.block_id
-                self.move_character_to_block(attacker, target_block_id)
-                attacker.set_behavior(behavior)
-
-            else:
-                # 远离目标：创建新块（移动到自己的块）
-                attacker_block_id = id(attacker)
-                self.move_character_to_block(attacker, attacker_block_id)
-                attacker.set_behavior(behavior)
-
-        # 所有角色的技能冷却减少1回合
-        self.reduce_all_cooldowns()
+        else:  # remove_control
+            # 执行解控行为
+            self.perform_remove_control_behavior(attacker)
 
         # 更新存活状态
         self.update_alive_characters()
@@ -212,6 +210,38 @@ class Game:
             return False
 
         return True
+
+    def perform_random_move_behavior(self, attacker, target):
+        """随机执行一种移动行为"""
+        behavior = random.choice([BehaviorType.MOVE_CLOSE, BehaviorType.MOVE_AWAY])
+
+        print(f"\n{attacker.name} 执行移动行为: {behavior.value} 针对 {target.name}")
+
+        if behavior == BehaviorType.MOVE_CLOSE:
+            # 靠近目标：移动到目标所在的块
+            target_block_id = target.block_id
+            self.move_character_to_block(attacker, target_block_id)
+            attacker.set_behavior(behavior)
+
+        else:
+            # 远离目标：创建新块（移动到自己的块）
+            attacker_block_id = id(attacker)
+            self.move_character_to_block(attacker, attacker_block_id)
+            attacker.set_behavior(behavior)
+
+    def perform_remove_control_behavior(self, attacker):
+        """执行解控行为"""
+        print(f"\n{attacker.name} 执行解控行为")
+
+        # 检查是否有控制效果
+        if not attacker.control:
+            print(f"{attacker.name} 没有控制效果可解控，跳过本回合")
+            return
+
+        # 随机选择一个控制效果进行移除
+        control_name = random.choice(list(attacker.control.keys()))
+        attacker.reduce_control(control_name, 1)
+        attacker.set_behavior(BehaviorType.REMOVE_CONTROL)
 
     def reset_game(self):
         """重置游戏状态"""

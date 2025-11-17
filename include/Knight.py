@@ -141,6 +141,8 @@ class Knight(Character):
             print(f"{self.name} 举盾冲锋！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
             print(f"{self.name} 持盾后撤！")
+        elif new_behavior == BehaviorType.REMOVE_CONTROL:
+            print(f"{self.name} 集中意志抵抗控制效果！")
 
     def reset_battle_round(self):
         """重置战斗回合状态（每局开始调用）"""

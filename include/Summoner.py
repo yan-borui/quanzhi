@@ -99,6 +99,8 @@ class Summoner(Character):
             print(f"{self.name} 指挥召唤物向前推进！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
             print(f"{self.name} 与召唤物一同后撤！")
+        elif new_behavior == BehaviorType.REMOVE_CONTROL:
+            print(f"{self.name} 念动咒语解除控制！")
 
     def reset_battle_round(self):
         """重置战斗回合状态（每局开始调用）"""

@@ -116,6 +116,8 @@ class Swordsman(Character):
             print(f"{self.name} 持剑向前逼近！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
             print(f"{self.name} 后撤步保持距离！")
+        elif new_behavior == BehaviorType.REMOVE_CONTROL:
+            print(f"{self.name} 运功冲破控制束缚！")
 
     def reset_battle_round(self):
         """重置战斗回合状态（每局开始调用）"""

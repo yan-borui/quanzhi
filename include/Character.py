@@ -50,6 +50,10 @@ class Character(ABC):
         """设置角色所在的块ID"""
         self.block_id = block_id
 
+    def is_controlled(self) -> bool:
+        """检查角色是否被控制（有控制效果）"""
+        return len(self.control) > 0
+
     # 带目标的技能使用（可选实现）
     def use_skill_on_target(self, skill_name: str, target: 'Character'):
         # 默认实现忽略目标，子类可以重写
@@ -319,6 +323,13 @@ class Character(ABC):
         print(f"生命值: {self.current_hp}/{self.max_hp}", end="")
         if self.is_destroyed():
             print(" [已摧毁]", end="")
+        print()
+
+        # 添加控制状态显示
+        if self.is_controlled():
+            print("状态: [被控制 - 下回合只能解控]", end="")
+        else:
+            print("状态: [正常]", end="")
         print()
 
         if self.control:
