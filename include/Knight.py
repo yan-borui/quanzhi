@@ -145,7 +145,8 @@ class Knight(Character):
     def reset_battle_round(self):
         """重置战斗回合状态（每局开始调用）"""
         self.shield_charges = 5
-        self.state_history = []
+        current_state = self._capture_state()
+        self.state_history = [current_state.copy() for _ in range(self.max_history_size)]
         print(f"{self.name} 准备就绪，盾技能使用次数重置为5，历史状态已清空")
 
 
