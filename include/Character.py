@@ -214,8 +214,9 @@ class Character(ABC):
     def add_imprint(self, imprint: str, value: int):
         if not imprint:
             return
-        self.imprints[imprint] = value
-        print(f"{self.name} 获得了 {imprint} 印记，值: {value}")
+        current_value = self.imprints.get(imprint, 0)
+        self.imprints[imprint] = current_value + value
+        print(f"{self.name} 获得了 {imprint} 印记，值: {value}，当前值: {self.imprints[imprint]}")
 
     def get_imprint(self, imprint: str) -> int:
         return self.imprints.get(imprint, 0)

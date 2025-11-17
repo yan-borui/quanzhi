@@ -15,17 +15,17 @@ class Summoner(Character):
     def _initialize_skills(self):
         """初始化召唤师的技能"""
         # 狼
-        wolf = Skill("狼", cooldown=0)
+        wolf = Skill("狼", cooldown=1)
         wolf.set_effect(self._wolf_effect)
         self.add_or_replace_skill(wolf)
 
         # 熊
-        bear = Skill("熊", cooldown=0)
+        bear = Skill("熊", cooldown=1)
         bear.set_effect(self._bear_effect)
         self.add_or_replace_skill(bear)
 
         # 齐攻
-        coordinated_attack = Skill("齐攻", cooldown=0)
+        coordinated_attack = Skill("齐攻", cooldown=1)
         coordinated_attack.set_effect(self._coordinated_attack_effect)
         self.add_or_replace_skill(coordinated_attack)
 

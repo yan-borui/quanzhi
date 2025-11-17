@@ -16,22 +16,22 @@ class Swordsman(Character):
     def _initialize_skills(self):
         """初始化剑客的技能"""
         # 游刃斩
-        effortless_slash = Skill("游刃斩", cooldown=1)
+        effortless_slash = Skill("游刃斩", cooldown=2)
         effortless_slash.set_effect(self._effortless_slash_effect)
         self.add_or_replace_skill(effortless_slash)
 
         # 回旋斩
-        whirlwind_slash = Skill("回旋斩", cooldown=1)
+        whirlwind_slash = Skill("回旋斩", cooldown=2)
         whirlwind_slash.set_effect(self._whirlwind_slash_effect)
         self.add_or_replace_skill(whirlwind_slash)
 
         # 闪电劈
-        lightning_strike = Skill("闪电劈", cooldown=0)
+        lightning_strike = Skill("闪电劈", cooldown=1)
         lightning_strike.set_effect(self._lightning_strike_effect)
         self.add_or_replace_skill(lightning_strike)
 
         # 无敌刺
-        invincible_thrust = Skill("无敌刺", cooldown=0)
+        invincible_thrust = Skill("无敌刺", cooldown=1)
         invincible_thrust.set_effect(self._invincible_thrust_effect)
         self.add_or_replace_skill(invincible_thrust)
 
