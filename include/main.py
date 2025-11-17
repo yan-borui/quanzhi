@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # main.py
 import random
+from typing import List
+from Character import Character
 from Behavior import BehaviorType
 from Knight import Knight
 from Summoner import Summoner
@@ -22,6 +24,68 @@ class Game:
 
         # 回合计数器
         self.round_count = 0
+
+        # 初始化块系统
+        self.initialize_block_system()
+
+    def initialize_block_system(self):
+        """初始化块系统，每个角色在自己的块中"""
+        # 初始时每个角色在自己的块，邻接表只包含自己
+        for char in self.all_characters:
+            char.block_id = id(char)
+            char.clear_nearby_characters()
+            char.add_nearby_character(char)  # 每个角色总是靠近自己
+
+    def move_character_to_block(self, character: Character, target_block_id: int):
+        """将角色移动到目标块"""
+        old_block_id = character.block_id
+
+        if old_block_id == target_block_id:
+            return  # 已经在目标块中
+
+        # 更新角色的块ID
+        character.block_id = target_block_id
+
+        # 更新邻接表：角色与目标块中的所有角色互相靠近
+        self.update_nearby_for_block(target_block_id)
+
+        # 如果原块中还有其他角色，也需要更新他们的邻接表
+        if self.count_characters_in_block(old_block_id) > 0:
+            self.update_nearby_for_block(old_block_id)
+
+        print(f"{character.name} 移动到块 {target_block_id}")
+
+    def count_characters_in_block(self, block_id: int) -> int:
+        """计算块中的角色数量"""
+        count = 0
+        for char in self.all_characters:
+            if char.block_id == block_id:
+                count += 1
+        return count
+
+    def update_nearby_for_block(self, block_id: int):
+        """更新指定块中所有角色的邻接表"""
+        # 获取该块中的所有角色
+        characters_in_block = [char for char in self.all_characters if char.block_id == block_id]
+
+        # 为每个角色更新邻接表
+        for char in characters_in_block:
+            # 清空当前邻接表
+            char.clear_nearby_characters()
+
+            # 添加该块中的所有角色到邻接表
+            for other_char in characters_in_block:
+                char.add_nearby_character(other_char)
+
+        print(f"块 {block_id} 更新完成，包含角色: {[c.name for c in characters_in_block]}")
+
+    def is_nearby(self, char1: Character, char2: Character) -> bool:
+        """检查两个角色是否在同一块中（是否靠近）"""
+        return char1.block_id == char2.block_id
+
+    def get_block_members(self, block_id: int) -> List[Character]:
+        """获取指定块中的所有角色"""
+        return [char for char in self.all_characters if char.block_id == block_id]
 
     def get_random_alive_character(self):
         """随机获取一个存活的角色"""
@@ -126,12 +190,15 @@ class Game:
             print(f"\n{attacker.name} 执行行为: {behavior.value} 针对 {target.name}")
 
             if behavior == BehaviorType.MOVE_CLOSE:
-                # 靠近目标
-                attacker.add_nearby_character(target)
+                # 靠近目标：移动到目标所在的块
+                target_block_id = target.block_id
+                self.move_character_to_block(attacker, target_block_id)
                 attacker.set_behavior(behavior)
+
             else:
-                # 远离目标
-                attacker.remove_nearby_character(target)
+                # 远离目标：创建新块（移动到自己的块）
+                attacker_block_id = id(attacker)
+                self.move_character_to_block(attacker, attacker_block_id)
                 attacker.set_behavior(behavior)
 
         # 所有角色的技能冷却减少1回合
@@ -163,6 +230,9 @@ class Game:
             for skill in char.skills.values():
                 skill.set_cooldown(0)
 
+        # 重置块系统
+        self.initialize_block_system()
+
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
 
@@ -172,6 +242,17 @@ class Game:
         print("参战角色:")
         for char in self.all_characters:
             print(f"- {char.name} ({char.max_hp} HP)")
+
+        # 显示初始块状态
+        print("\n初始块状态:")
+        blocks = {}
+        for char in self.all_characters:
+            if char.block_id not in blocks:
+                blocks[char.block_id] = []
+            blocks[char.block_id].append(char.name)
+
+        for block_id, names in blocks.items():
+            print(f"块 {block_id}: {names}")
 
         # 游戏主循环
         while len(self.alive_characters) > 1:

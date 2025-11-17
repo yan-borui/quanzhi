@@ -29,6 +29,7 @@ class Character(ABC):
         self.current_hp = max(0, self.max_hp)
         self.control = control if control is not None else {}
         self.stealth = stealth
+        self.block_id = id(self)
 
         self.skills: Dict[str, Skill] = {}
         self.imprints: Dict[str, int] = {}
@@ -41,6 +42,14 @@ class Character(ABC):
     def use_skill(self, skill_name: str):
         pass
 
+    def get_block_id(self) -> int:
+        """获取角色所在的块ID"""
+        return self.block_id
+
+    def set_block_id(self, block_id: int):
+        """设置角色所在的块ID"""
+        self.block_id = block_id
+
     # 带目标的技能使用（可选实现）
     def use_skill_on_target(self, skill_name: str, target: 'Character'):
         # 默认实现忽略目标，子类可以重写
@@ -50,7 +59,6 @@ class Character(ABC):
         """设置当前行为"""
         old_behavior = self.current_behavior
         self.current_behavior = behavior
-        print(f"{self.name} 行为改变: {old_behavior.value} -> {behavior.value}")
         self.on_behavior_change(old_behavior, behavior)
 
     def get_behavior(self) -> Optional[BehaviorType]:
