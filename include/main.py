@@ -144,6 +144,208 @@ class Game:
         for char in self.all_characters:
             char.reduce_all_cooldowns()
 
+    def rock_paper_scissors(self):
+        """三个角色进行石头剪刀布，返回赢家"""
+        print("\n=== 石头剪刀布环节 ===")
+        
+        # 为每个角色随机选择出拳
+        choices = ['石头', '剪刀', '布']
+        player_choices = {}
+        
+        for char in self.alive_characters:
+            choice = random.choice(choices)
+            player_choices[char] = choice
+            print(f"{char.name} 出了：{choice}")
+        
+        # 判断赢家
+        # 如果所有人出的一样，或者三种都有，则平局，重新猜
+        unique_choices = set(player_choices.values())
+        
+        if len(unique_choices) == 1:
+            print("平局！重新开始...")
+            return self.rock_paper_scissors()
+        
+        if len(unique_choices) == 3:
+            print("三种都有，平局！重新开始...")
+            return self.rock_paper_scissors()
+        
+        # 确定赢的出拳类型
+        winning_choice = None
+        if '石头' in unique_choices and '剪刀' in unique_choices:
+            winning_choice = '石头'
+        elif '剪刀' in unique_choices and '布' in unique_choices:
+            winning_choice = '剪刀'
+        elif '布' in unique_choices and '石头' in unique_choices:
+            winning_choice = '布'
+        
+        # 找出所有赢家
+        winners = [char for char, choice in player_choices.items() if choice == winning_choice]
+        
+        if len(winners) == 1:
+            winner = winners[0]
+            print(f"\n{winner.name} 获胜！")
+            return winner
+        else:
+            # 多个赢家，重新在赢家之间猜拳
+            print(f"\n多个赢家：{[w.name for w in winners]}，继续猜拳...")
+            temp_alive = self.alive_characters
+            self.alive_characters = winners
+            winner = self.rock_paper_scissors()
+            self.alive_characters = temp_alive
+            return winner
+
+    def get_available_actions(self, character):
+        """获取角色的所有可用动作选项"""
+        actions = []
+        
+        # 添加可用技能
+        for skill_name, skill in character.skills.items():
+            if skill.is_available():
+                # 检查特殊条件
+                if skill_name == "盾" and isinstance(character, Knight):
+                    if character.shield_charges <= 0:
+                        continue
+                    if len(character.state_history) < 2:
+                        continue
+                    previous_state = character.state_history[-2]
+                    if previous_state.get("control", {}):
+                        continue
+                
+                actions.append(f"技能:{skill_name}")
+            else:
+                # 显示冷却中的技能（不可选）
+                actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+        
+        # 添加行为选项
+        actions.append("行为:到你身边")
+        actions.append("行为:离你远点")
+        
+        # 只有在有控制效果时才显示解控
+        if character.control:
+            actions.append("行为:解控")
+        
+        return actions
+
+    def display_action_options(self, character):
+        """显示角色的所有可用动作并获取用户输入"""
+        print(f"\n=== {character.name} 的回合 ===")
+        print(f"当前状态: HP {character.current_hp}/{character.max_hp}")
+        
+        if character.control:
+            print(f"控制效果: {list(character.control.keys())}")
+        if character.imprints:
+            print(f"印记: {character.imprints}")
+        if character.accumulations:
+            print(f"积累: {character.accumulations}")
+        
+        actions = self.get_available_actions(character)
+        
+        print("\n可用动作：")
+        for i, action in enumerate(actions, 1):
+            print(f"{i}. {action}")
+        
+        # 获取用户输入
+        while True:
+            try:
+                choice = input("\n请输入动作编号或直接输入动作名称（如'游刃斩'或'到你身边'）: ").strip()
+                
+                # 尝试作为数字解析
+                if choice.isdigit():
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(actions):
+                        selected_action = actions[choice_num - 1]
+                        # 移除冷却标记
+                        if "(CD:" in selected_action:
+                            print("该技能正在冷却中，无法使用！")
+                            continue
+                        return selected_action
+                    else:
+                        print(f"请输入1-{len(actions)}之间的数字！")
+                        continue
+                
+                # 尝试作为动作名称解析
+                # 检查是否是技能名
+                for action in actions:
+                    if "(CD:" in action:
+                        continue
+                    if choice in action or action.endswith(choice):
+                        return action
+                
+                print("无效的输入，请重新选择！")
+                
+            except Exception as e:
+                print(f"输入错误：{e}，请重新输入！")
+
+    def execute_player_action(self, character, action):
+        """执行玩家选择的动作"""
+        # 解析动作类型
+        if action.startswith("技能:"):
+            skill_name = action.replace("技能:", "").strip()
+            
+            # 选择目标
+            targets = [char for char in self.alive_characters if char != character]
+            if not targets:
+                print(f"{character.name} 没有可用目标！")
+                return
+            
+            print("\n可用目标：")
+            for i, target in enumerate(targets, 1):
+                print(f"{i}. {target.name} (HP: {target.current_hp}/{target.max_hp})")
+            
+            while True:
+                try:
+                    target_choice = input("请选择目标编号: ").strip()
+                    if target_choice.isdigit():
+                        target_num = int(target_choice)
+                        if 1 <= target_num <= len(targets):
+                            target = targets[target_num - 1]
+                            break
+                    print(f"请输入1-{len(targets)}之间的数字！")
+                except Exception as e:
+                    print(f"输入错误：{e}，请重新输入！")
+            
+            print(f"\n{character.name} 使用技能 {skill_name} 攻击 {target.name}")
+            character.use_skill_on_target(skill_name, target)
+            
+        elif action.startswith("行为:"):
+            behavior_name = action.replace("行为:", "").strip()
+            
+            if behavior_name == "解控":
+                self.perform_remove_control_behavior(character)
+            else:
+                # 选择目标
+                targets = [char for char in self.alive_characters if char != character]
+                if not targets:
+                    print(f"{character.name} 没有可用目标！")
+                    return
+                
+                print("\n可用目标：")
+                for i, target in enumerate(targets, 1):
+                    print(f"{i}. {target.name}")
+                
+                while True:
+                    try:
+                        target_choice = input("请选择目标编号: ").strip()
+                        if target_choice.isdigit():
+                            target_num = int(target_choice)
+                            if 1 <= target_num <= len(targets):
+                                target = targets[target_num - 1]
+                                break
+                        print(f"请输入1-{len(targets)}之间的数字！")
+                    except Exception as e:
+                        print(f"输入错误：{e}，请重新输入！")
+                
+                if behavior_name == "到你身边":
+                    print(f"\n{character.name} 向 {target.name} 靠近")
+                    self.move_character_to_block(character, target.block_id)
+                    character.set_behavior(BehaviorType.MOVE_CLOSE)
+                elif behavior_name == "离你远点":
+                    print(f"\n{character.name} 远离 {target.name}")
+                    # 移动到新的块
+                    new_block_id = id(character)
+                    self.move_character_to_block(character, new_block_id)
+                    character.set_behavior(BehaviorType.MOVE_AWAY)
+
     def play_round(self):
         """进行一个回合"""
         self.round_count += 1
@@ -156,51 +358,21 @@ class Game:
         if self.knight.is_alive():
             self.knight.on_turn_start()
 
-        # 随机选择一个行动的角色
-        attacker = self.get_random_alive_character()
-        if not attacker:
+        # 石头剪刀布决定谁行动
+        winner = self.rock_paper_scissors()
+        if not winner:
             return False
 
         # 检查角色是否被控制
-        if attacker.is_controlled():
-            # 被控制时只能选择解控行为
-            print(f"{attacker.name} 被控制，本回合只能选择解控行为")
-            self.perform_remove_control_behavior(attacker)
-            return True
-
-        # 随机决定是使用技能、执行移动行为还是解控行为
-        action_type = random.choice(["skill", "move_behavior", "remove_control"])
-
-        if action_type == "skill":
-            # 使用技能的逻辑
-            skill_name = self.get_random_skill(attacker)
-            if not skill_name:
-                print(f"{attacker.name} 没有可用技能，跳过本回合")
-                return True
-
-            # 随机选择目标
-            target = self.get_random_target(attacker)
-            if not target:
-                print(f"{attacker.name} 没有可用目标，跳过本回合")
-                return True
-
-            # 使用技能
-            print(f"\n{attacker.name} 使用技能 {skill_name} 攻击 {target.name}")
-            attacker.use_skill_on_target(skill_name, target)
-
-        elif action_type == "move_behavior":
-            # 执行移动行为的逻辑
-            target = self.get_random_target(attacker)
-
-            if not target:
-                print(f"{attacker.name} 没有可用目标，无法执行移动行为，跳过本回合")
-                return True
-
-            self.perform_random_move_behavior(attacker, target)
-
-        else:  # remove_control
-            # 执行解控行为
-            self.perform_remove_control_behavior(attacker)
+        if winner.is_controlled():
+            print(f"\n{winner.name} 被控制，本回合只能选择解控行为")
+            self.perform_remove_control_behavior(winner)
+        else:
+            # 显示选项并获取用户输入
+            action = self.display_action_options(winner)
+            
+            # 执行选择的动作
+            self.execute_player_action(winner, action)
 
         # 更新存活状态
         self.update_alive_characters()
