@@ -198,7 +198,13 @@ class Game:
         """获取角色的所有可用动作选项"""
         actions = []
         
-        # 添加可用技能
+        # 如果角色被控制，只提供解控选项
+        if character.control:
+            for control_name in character.control.keys():
+                actions.append(f"行为:解控-{control_name}")
+            return actions
+        
+        # 没有被控制时，添加可用技能
         for skill_name, skill in character.skills.items():
             if skill.is_available():
                 # 检查特殊条件
@@ -219,10 +225,6 @@ class Game:
         # 添加行为选项
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
-        
-        # 只有在有控制效果时才显示解控
-        if character.control:
-            actions.append("行为:解控")
         
         return actions
 
@@ -316,8 +318,10 @@ class Game:
         elif action.startswith("行为:"):
             behavior_name = action.replace("行为:", "").strip()
             
-            if behavior_name == "解控":
-                self.perform_remove_control_behavior(character)
+            # 检查是否是解控行为
+            if behavior_name.startswith("解控-"):
+                control_name = behavior_name.replace("解控-", "").strip()
+                self.perform_remove_control_behavior_specific(character, control_name)
             else:
                 # 选择目标
                 targets = [char for char in self.alive_characters if char != character]
@@ -403,7 +407,7 @@ class Game:
             attacker.set_behavior(behavior)
 
     def perform_remove_control_behavior(self, attacker):
-        """执行解控行为"""
+        """执行解控行为（随机移除一个控制效果）"""
         print(f"\n{attacker.name} 执行解控行为")
 
         # 检查是否有控制效果
@@ -415,6 +419,20 @@ class Game:
         control_name = random.choice(list(attacker.control.keys()))
         attacker.reduce_control(control_name, 1)
         attacker.set_behavior(BehaviorType.REMOVE_CONTROL)
+
+    def perform_remove_control_behavior_specific(self, character, control_name):
+        """执行解控行为（移除指定的控制效果）"""
+        print(f"\n{character.name} 尝试解除 {control_name} 控制效果")
+
+        # 检查是否有该控制效果
+        if not character.has_control(control_name):
+            print(f"{character.name} 没有 {control_name} 控制效果")
+            return
+
+        # 移除一层该控制效果
+        character.reduce_control(control_name, 1)
+        character.set_behavior(BehaviorType.REMOVE_CONTROL)
+        print(f"{character.name} 成功解除一层 {control_name} 控制效果")
 
     def reset_game(self):
         """重置游戏状态"""
