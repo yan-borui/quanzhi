@@ -282,7 +282,13 @@ class Game:
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
             
-            # 选择目标
+            # 特殊技能：盾、狼、熊 - 目标为自己，不需要选择
+            if skill_name in ["盾", "狼", "熊"]:
+                print(f"\n{character.name} 使用技能 {skill_name}")
+                character.use_skill_on_target(skill_name, character)
+                return
+            
+            # 其他技能需要选择目标
             targets = [char for char in self.alive_characters if char != character]
             if not targets:
                 print(f"{character.name} 没有可用目标！")
@@ -363,16 +369,11 @@ class Game:
         if not winner:
             return False
 
-        # 检查角色是否被控制
-        if winner.is_controlled():
-            print(f"\n{winner.name} 被控制，本回合只能选择解控行为")
-            self.perform_remove_control_behavior(winner)
-        else:
-            # 显示选项并获取用户输入
-            action = self.display_action_options(winner)
-            
-            # 执行选择的动作
-            self.execute_player_action(winner, action)
+        # 显示选项并获取用户输入（被控制时也可以选择解控）
+        action = self.display_action_options(winner)
+        
+        # 执行选择的动作
+        self.execute_player_action(winner, action)
 
         # 更新存活状态
         self.update_alive_characters()
