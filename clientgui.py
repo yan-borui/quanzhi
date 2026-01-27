@@ -6,9 +6,15 @@ from PySide6.QtWidgets import QApplication, QWidget, QTextEdit, QLineEdit
 from PySide6.QtCore import Qt, QTimer, Slot, QRect
 from PySide6.QtGui import QImage, QPixmap, QPainter
 import pygame
+debug = False
 
-HOST = 'frp-oil.com'
-PORT = 63867
+if debug:
+    HOST = '127.0.0.1'
+    PORT = 50007
+else:
+    HOST = 'frp-oil.com'
+    PORT = 63867
+
 closed = threading.Event()
 readqueue = queue.Queue()
 sendlock = threading.Lock()
@@ -18,7 +24,10 @@ quandict = {"剪刀": "0", "石头": "1", "布": "2"}
 def reader(s):
     with s.makefile('r', encoding='utf-8') as f:
         while True:
-            msg = f.readline().strip()
+            try:
+                msg = f.readline().strip()
+            except (ConnectionResetError, ConnectionAbortedError):
+                break
             if not msg:
                 break
             readqueue.put(msg)
@@ -268,13 +277,20 @@ class MainWindow(QWidget):
 
 
 if __name__ == '__main__':
-    name = str(input("请输入昵称：")).strip()
-    team = str(input("请输入队伍名：")).strip()
+    if debug:
+        name = "jk"
+        team = "t1"
+        character = "剑客"
+    else:
+        name = str(input("请输入昵称：")).strip()
+        team = str(input("请输入队伍名：")).strip()
+        character = str(input("请输入角色名：")).strip()
+
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.connect((HOST, PORT))
         with sendlock:
-            s.sendall((name + "\n" + team + "\n").encode('utf-8'))
+            s.sendall((name + "\n" + team + "\n" + character + "\n").encode('utf-8'))
         t = threading.Thread(target=reader, args=(s,), name="reader")
         t.start()
 
