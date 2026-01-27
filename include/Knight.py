@@ -61,9 +61,16 @@ class Knight(Character):
 
             # 检查上上回合是否有控制
             previous_state = self.state_history[-2]  # 上上回合的状态
-            if previous_state.get("control", {}):
-                print(f"上上回合有控制效果，无法使用盾技能！")
-                return
+            
+            # 特殊情况：如果当前已死亡或被控制，允许使用盾（死后/被控后的第一回合）
+            is_dead = self.current_hp <= 0
+            is_controlled = len(self.control) > 0
+            
+            # 如果既不是死亡也不是被控制状态，需要检查上上回合是否有控制
+            if not is_dead and not is_controlled:
+                if previous_state.get("control", {}):
+                    print(f"上上回合有控制效果，无法使用盾技能！")
+                    return
 
         # 执行技能
         success = skill.execute_with_target(self, target)
@@ -87,14 +94,14 @@ class Knight(Character):
         return True
 
     def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        """盾效果：回退到上上回合的状态"""
+        """盾效果：回退到上上回合的状态（不包括行为）"""
         # 消耗一次使用次数
         self.shield_charges -= 1
 
         # 获取上上回合的状态
         previous_state = self.state_history[-2]
 
-        # 回退状态
+        # 回退状态（不包括行为）
         self._restore_state(previous_state)
 
         print(f"{self.name} 使用盾技能，状态回退到上上回合！")
@@ -114,7 +121,7 @@ class Knight(Character):
         print(f"{self.name} 记录状态，历史状态数: {len(self.state_history)}")
 
     def _capture_state(self) -> Dict:
-        """捕获当前状态"""
+        """捕获当前状态（不包括行为）"""
         return {
             "current_hp": self.current_hp,
             "control": copy.deepcopy(self.control),
@@ -123,7 +130,7 @@ class Knight(Character):
         }
 
     def _restore_state(self, state: Dict):
-        """恢复状态"""
+        """恢复状态（不包括行为）"""
         self.current_hp = state["current_hp"]
         self.control = copy.deepcopy(state["control"])
         self.imprints = copy.deepcopy(state["imprints"])
@@ -174,8 +181,8 @@ KNIGHT_SKILLS_DATA = {
         "name": "盾",
         "cooldown": 0,
         "damage": 0,
-        "effect": "回退到上上回合的状态",
-        "requirement": "需要上上回合没有控制效果，每局只能使用5次",
+        "effect": "回退到上上回合的状态（不包括行为）",
+        "requirement": "需要上上回合没有控制效果（或当前死亡/被控），每局只能使用5次",
         "description": "防御性技能，可以回退状态"
     }
 }
