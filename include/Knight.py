@@ -44,11 +44,7 @@ class Knight(Character):
             print(f"{self.name} 没有技能: {skill_name}")
             return
 
-        if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        # 特殊技能条件检查
+        # 特殊处理：盾技能可以在被控时使用，也可以在死后使用
         if skill_name == "盾":
             if self.shield_charges <= 0:
                 print(f"盾技能使用次数已用完！")
@@ -60,17 +56,21 @@ class Knight(Character):
                 return
 
             # 检查上上回合是否有控制
-            previous_state = self.state_history[-2]  # 上上回合的状态
-            
-            # 特殊情况：如果当前已死亡或被控制，允许使用盾（死后/被控后的第一回合）
-            is_dead = self.current_hp <= 0
-            is_controlled = len(self.control) > 0
-            
-            # 如果既不是死亡也不是被控制状态，需要检查上上回合是否有控制
-            if not is_dead and not is_controlled:
-                if previous_state.get("control", {}):
-                    print(f"上上回合有控制效果，无法使用盾技能！")
-                    return
+            previous_state = self.state_history[-2]
+            if previous_state.get("control", {}):
+                print(f"上上回合有控制效果，无法使用盾技能！")
+                return
+
+            # 执行盾技能（不检查冷却）
+            success = skill.execute_with_target(self, target)
+            if success:
+                print(f"{self.name} 使用了 {skill_name}")
+            return
+
+        # 其他技能需要检查冷却
+        if not skill.is_available():
+            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            return
 
         # 执行技能
         success = skill.execute_with_target(self, target)
@@ -94,14 +94,14 @@ class Knight(Character):
         return True
 
     def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        """盾效果：回退到上上回合的状态（不包括行为）"""
+        """盾效果：回退到上上回合的状态（不影响行为和位置）"""
         # 消耗一次使用次数
         self.shield_charges -= 1
 
         # 获取上上回合的状态
         previous_state = self.state_history[-2]
 
-        # 回退状态（不包括行为）
+        # 回退状态（不包括block_id，所以不影响行为）
         self._restore_state(previous_state)
 
         print(f"{self.name} 使用盾技能，状态回退到上上回合！")
@@ -118,10 +118,10 @@ class Knight(Character):
         if len(self.state_history) > self.max_history_size:
             self.state_history.pop(0)
 
-        print(f"{self.name} 记录状态，历史状态数: {len(self.state_history)}")
+        print(f"{self.name} 记录状态，��史状态数: {len(self.state_history)}")
 
     def _capture_state(self) -> Dict:
-        """捕获当前状态（不包括行为）"""
+        """捕获当前状态（不包括block_id，避免盾影响行为）"""
         return {
             "current_hp": self.current_hp,
             "control": copy.deepcopy(self.control),
@@ -130,7 +130,7 @@ class Knight(Character):
         }
 
     def _restore_state(self, state: Dict):
-        """恢复状态（不包括行为）"""
+        """恢复状态（不恢复block_id，避免盾影响行为）"""
         self.current_hp = state["current_hp"]
         self.control = copy.deepcopy(state["control"])
         self.imprints = copy.deepcopy(state["imprints"])
@@ -141,6 +141,17 @@ class Knight(Character):
             self.current_hp = self.max_hp
 
         print(f"{self.name} 状态已回退: HP={self.current_hp}, 控制={self.control}")
+
+    def can_use_shield(self) -> bool:
+        """检查是否可以使用盾技能"""
+        if self.shield_charges <= 0:
+            return False
+        if len(self.state_history) < 2:
+            return False
+        previous_state = self.state_history[-2]
+        if previous_state.get("control", {}):
+            return False
+        return True
 
     def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
         """行为改变时的回调"""
@@ -181,8 +192,8 @@ KNIGHT_SKILLS_DATA = {
         "name": "盾",
         "cooldown": 0,
         "damage": 0,
-        "effect": "回退到上上回合的状态（不包括行为）",
-        "requirement": "需要上上回合没有控制效果（或当前死亡/被控），每局只能使用5次",
+        "effect": "回退到上上回合的状态（不影响位置和行为）",
+        "requirement": "需要上上回合没有控制效果，每局只能使用5次，可在被控或死后第一回合使用",
         "description": "防御性技能，可以回退状态"
     }
 }

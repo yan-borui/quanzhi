@@ -14,6 +14,7 @@ Character 抽象基类
 - 增加了类型注解
 - 改进了摧毁状态的检测逻辑
 - 添加了行为系统和邻接表管理
+- 修改is_nearby为基于block_id判断，避免邻接表不同步
 """
 
 from abc import ABC, abstractmethod
@@ -102,8 +103,8 @@ class Character(ABC):
         return list(self.nearby_characters)
 
     def is_nearby(self, character: 'Character') -> bool:
-        """检查是否在某个角色附近"""
-        return character in self.nearby_characters
+        """检查是否在某个角色附近（基于block_id判断，避免邻接表不同步）"""
+        return self.block_id == character.block_id
 
     # 受伤并显示（确保边界）
     def take_damage(self, damage: int):
@@ -151,6 +152,15 @@ class Character(ABC):
     def reduce_all_cooldowns(self):
         for skill in self.skills.values():
             skill.reduce_cooldown()
+
+    # 将所有技能冷却+1（用于废步回退）
+    def increase_all_cooldowns(self):
+        for skill in self.skills.values():
+            current_cd = skill.get_cooldown()
+            base_cd = skill.get_base_cooldown()
+            # 不能超过基础冷却
+            if current_cd < base_cd:
+                skill.set_cooldown(current_cd + 1)
 
     # 添加或替换技能
     def add_or_replace_skill(self, skill: Skill):
