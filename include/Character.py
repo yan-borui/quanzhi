@@ -15,6 +15,7 @@ Character 抽象基类
 - 改进了摧毁状态的检测逻辑
 - 添加了行为系统和邻接表管理
 - 修改is_nearby为基于block_id判断，避免邻接表不同步
+- 死亡时自动清除所有控制效果
 """
 
 from abc import ABC, abstractmethod
@@ -119,8 +120,11 @@ class Character(ABC):
             self.current_hp = 0
         print(f"{self.name} 受到了 {damage} 点伤害，当前生命值: {self.current_hp}/{self.max_hp}")
 
-        # 如果从存活状态变为摧毁状态，触发摧毁回调
+        # 如果从存活状态变为摧毁状态，清除所有控制并触发摧毁回调
         if was_alive and self.is_destroyed():
+            if self.control:
+                print(f"{self.name} 死亡时清除了所有控制效果")
+                self.clear_all_controls()
             self.on_destroy()
 
     # 治疗并显示
@@ -222,7 +226,6 @@ class Character(ABC):
     def clear_all_controls(self):
         """清除所有控制效果"""
         self.control.clear()
-        print(f"{self.name} 清除了所有控制效果")
 
     # 印记管理（get/set/remove/clear）
     def add_imprint(self, imprint: str, value: int):

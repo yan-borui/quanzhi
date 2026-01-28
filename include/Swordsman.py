@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Swordsman.py
-from typing import Optional
+from typing import Optional, List
 
 from Behavior import BehaviorType
 from Character import Character
@@ -51,10 +51,6 @@ class Swordsman(Character):
             return
 
         # 特殊技能条件检查
-        if skill_name == "回旋斩" and not self.is_nearby(target):
-            print(f"回旋斩只能攻击附近的目标！{target.name} 不在附近")
-            return
-
         if skill_name == "闪电劈" and target.get_imprint("剑意") < 3:
             print(f"闪电劈需要目标有3层剑意印记，当前只有{target.get_imprint('剑意')}层")
             return
@@ -73,6 +69,33 @@ class Swordsman(Character):
         if success:
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
+    def use_whirlwind_on_targets(self, targets: List[Character]):
+        """对多个目标使用回旋斩（范围伤害）"""
+        skill = self.get_skill("回旋斩")
+        if not skill:
+            print(f"{self.name} 没有技能: 回旋斩")
+            return False
+
+        if not skill.is_available():
+            print(f"技能 回旋斩 在冷却中 (CD:{skill.get_cooldown()})")
+            return False
+
+        if not targets:
+            print(f"回旋斩没有有效目标！")
+            return False
+
+        print(f"{self.name} 使用了 回旋斩！")
+
+        # 对每个目标造成伤害
+        for target in targets:
+            target.take_damage(6)
+            target.add_imprint("剑意", 1)
+
+        # 触发技能冷却
+        skill.trigger_cooldown()
+
+        return True
+
     def _effortless_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """游刃斩效果：造成6点伤害并添加剑意印记"""
         if not target:
@@ -83,7 +106,7 @@ class Swordsman(Character):
         return True
 
     def _whirlwind_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        """回旋斩效果：造成6点伤害并添加剑意印记（只能攻击附近目标）"""
+        """回旋斩效果：造成6点伤害并添加剑意印记（范围伤害，由main.py调用use_whirlwind_on_targets）"""
         if not target:
             return False
 
@@ -138,9 +161,9 @@ SWORDSMAN_SKILLS_DATA = {
         "name": "回旋斩",
         "cooldown": 1,
         "damage": 6,
-        "effect": "添加剑意印记",
-        "range": "近程",
-        "special": "只能攻击附近目标"
+        "effect": "范围伤害，对同一块内所有敌方单位造成伤害并添加剑意印记",
+        "range": "近程范围",
+        "special": "对同一块内所有非自身角色造成伤害"
     },
     "闪电劈": {
         "name": "闪电劈",

@@ -55,13 +55,7 @@ class Knight(Character):
                 print(f"没有足够的历史状态使用盾技能！")
                 return
 
-            # 检查上上回合是否有控制
-            previous_state = self.state_history[-2]
-            if previous_state.get("control", {}):
-                print(f"上上回合有控制效果，无法使用盾技能！")
-                return
-
-            # 执行盾技能（不检查冷却）
+            # 执行盾技能（不检查冷却，不检查控制状态）
             success = skill.execute_with_target(self, target)
             if success:
                 print(f"{self.name} 使用了 {skill_name}")
@@ -148,9 +142,7 @@ class Knight(Character):
             return False
         if len(self.state_history) < 2:
             return False
-        previous_state = self.state_history[-2]
-        if previous_state.get("control", {}):
-            return False
+        # 移除了对上上回合控制的检查，允许在任何情况下使用盾
         return True
 
     def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
@@ -193,7 +185,7 @@ KNIGHT_SKILLS_DATA = {
         "cooldown": 0,
         "damage": 0,
         "effect": "回退到上上回合的状态（不影响位置和行为）",
-        "requirement": "需要上上回合没有控制效果，每局只能使用5次，可在被控或死后第一回合使用",
+        "requirement": "每局只能使用5次，可在被控或死后使用",
         "description": "防御性技能，可以回退状态"
     }
 }
