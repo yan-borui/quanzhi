@@ -33,6 +33,7 @@ class Game:
         for char in self.all_characters:
             char.block_id = id(char)
             char.nearby_characters = [char]
+            print(f"{char.name} 初始化在块 {char.block_id}")
 
     def reset_game(self):
         """重置游戏到初始状态"""
@@ -98,6 +99,12 @@ class Game:
     def play_round(self):
         """执行一个完整的回合"""
         self.round_count += 1
+
+        # 回合开始时调用所有角色的 on_turn_start（如果有的话）
+        for char in self.all_characters:
+            if hasattr(char, 'on_turn_start'):
+                char.on_turn_start()
+
         self.display_battle_status()
 
         # 回合开始时减少所有技能冷却
@@ -114,7 +121,11 @@ class Game:
 
         # 获取并执行玩家动作
         action = self.display_action_options(winner)
-        self.execute_player_action(winner, action)
+        success = self.execute_player_action(winner, action)
+
+        # 如果是废步，提示并跳过
+        if not success:
+            print(f"\n[警告] {winner.name} 的动作未能成功执行（废步）")
 
         # 更新存活状态
         self.update_alive_characters()
@@ -124,11 +135,13 @@ class Game:
         for char in self.all_characters:
             if char.is_alive():
                 print(f"{char.name}: {char.current_hp}/{char.max_hp} HP")
+            else:
+                print(f"{char.name}: [已摧毁]")
 
     def start(self):
         """开始游戏主循环"""
         print("=" * 50)
-        print("🎮 欢迎来到角色战斗游戏！")
+        print("欢迎来到角色战斗游戏！")
         print("=" * 50)
         print("\n参战角色:")
         for char in self.all_characters:
@@ -182,19 +195,35 @@ class Game:
         old_block_id = character.block_id
 
         if old_block_id == target_block_id:
-            return  # 已经在目标块中
+            print(f"{character.name} 已经在目标位置")
+            return
+
+        # 从旧块中移除（清理旧的邻接关系）
+        old_block_chars = [c for c in self.all_characters if c.block_id == old_block_id and c != character]
+        for other_char in old_block_chars:
+            if character in other_char.nearby_characters:
+                other_char.nearby_characters.remove(character)
 
         # 更新角色的块ID
         character.block_id = target_block_id
 
-        # 更新邻接表：角色与目标块中的所有角色互相靠近
-        self.update_nearby_for_block(target_block_id)
+        # 重建所有块的邻接表
+        self.rebuild_all_nearby_lists()
 
-        # 如果原块中还有其他角色，也需要更新他们的邻接表
-        if self.count_characters_in_block(old_block_id) > 0:
-            self.update_nearby_for_block(old_block_id)
+        print(f"{character.name} 移动到块 {target_block_id}")
 
-        print(f"{character.name} 移动��块 {target_block_id}")
+    def rebuild_all_nearby_lists(self):
+        """重建所有角色的邻接表（基于block_id）"""
+        # 按块分组
+        blocks = {}
+        for char in self.all_characters:
+            if char.block_id not in blocks:
+                blocks[char.block_id] = []
+            blocks[char.block_id].append(char)
+
+        # 为每个角色重建邻接表
+        for char in self.all_characters:
+            char.nearby_characters = blocks[char.block_id].copy()
 
     def count_characters_in_block(self, block_id: int) -> int:
         """计算块中的角色数量"""
@@ -203,20 +232,6 @@ class Game:
             if char.block_id == block_id:
                 count += 1
         return count
-
-    def update_nearby_for_block(self, block_id: int):
-        """更新指定块中所有角色的邻接表"""
-        # 获取该块中的所有角色
-        characters_in_block = [char for char in self.all_characters if char.block_id == block_id]
-
-        # 为每个角色更新邻接表（直接重建，避免双向操作导致的问题）
-        for char in characters_in_block:
-            char.nearby_characters = []
-            for other_char in characters_in_block:
-                if other_char not in char.nearby_characters:
-                    char.nearby_characters.append(other_char)
-
-        print(f"块 {block_id} 更新完成，包含角色: {[c.name for c in characters_in_block]}")
 
     def is_nearby(self, char1: Character, char2: Character) -> bool:
         """检查两个角色是否在同一块中（是否靠近）"""
@@ -235,48 +250,45 @@ class Game:
         possible_targets = [char for char in self.alive_characters if char != attacker]
         return random.choice(possible_targets) if possible_targets else None
 
-    def get_random_skill(self, character):
-        """随机获取角色可用的技能"""
-        available_skills = []
-
-        for skill_name, skill in character.skills.items():
-            # 特殊技能条件检查
-            if skill_name == "盾" and character.shield_charges <= 0:
-                continue
-            if skill_name == "齐攻":
-                wolf_accum = character.get_accumulation("狼")
-                bear_accum = character.get_accumulation("熊")
-                if wolf_accum < 4 and bear_accum < 4:
-                    continue
-            if skill_name == "闪电劈":
-                # 需要检查是否有目标有3层剑意
-                has_valid_target = any(
-                    char.get_imprint("剑意") >= 3 for char in self.alive_characters if char != character)
-                if not has_valid_target:
-                    continue
-            if skill_name == "无敌刺":
-                # 需要检查是否有目标有闪电劈控制
-                has_valid_target = any(
-                    char.has_control("lightning_strike") for char in self.alive_characters if char != character)
-                if not has_valid_target:
-                    continue
-
-            # 检查冷却
-            if skill.is_available():
-                available_skills.append(skill_name)
-
-        return random.choice(available_skills) if available_skills else None
-
     def update_alive_characters(self):
         """更新存活角色列表"""
         self.alive_characters = [char for char in self.all_characters if char.is_alive()]
 
     def display_battle_status(self):
         """显示战斗状态"""
-        print(f"\n=== 第 {self.round_count} 回合开始 ===")
+        print(f"\n{'=' * 60}")
+        print(f"第 {self.round_count + 1} 回合开始".center(60))
+        print('=' * 60)
+
         for char in self.all_characters:
             status = "存活" if char.is_alive() else "已摧毁"
-            print(f"{char.name}: {char.current_hp}/{char.max_hp} HP [{status}]")
+            hp_bar = self.get_hp_bar(char)
+            print(f"{char.name:10} [{status:4}] {hp_bar} {char.current_hp:2}/{char.max_hp:2} HP")
+
+            # 显示状态信息
+            status_info = []
+            if char.control:
+                status_info.append(f"控制:{list(char.control.keys())}")
+            if char.imprints:
+                status_info.append(f"印记:{char.imprints}")
+            if char.accumulations:
+                status_info.append(f"积累:{char.accumulations}")
+            if isinstance(char, Knight) and hasattr(char, 'shield_charges'):
+                status_info.append(f"盾次数:{char.shield_charges}")
+
+            if status_info:
+                print(f"           {' | '.join(status_info)}")
+
+        print('=' * 60)
+
+    def get_hp_bar(self, character: Character, bar_length: int = 20) -> str:
+        """生成生命值条（使用ASCII字符，兼容GBK编码）"""
+        if character.max_hp == 0:
+            return '[' + ' ' * bar_length + ']'
+
+        filled_length = int(bar_length * character.current_hp / character.max_hp)
+        bar = '=' * filled_length + '-' * (bar_length - filled_length)
+        return f'[{bar}]'
 
     def reduce_all_cooldowns(self):
         """所有角色的技能冷却减少1回合"""
@@ -308,7 +320,6 @@ class Game:
             print(f"{char.name} 出了：{choice}")
 
         # 判断赢家
-        # 如果所有人出的一样，或者三种都有，则平局，重新猜
         unique_choices = set(player_choices.values())
 
         if len(unique_choices) == 1:
@@ -338,10 +349,10 @@ class Game:
         else:
             # 多个赢家，重新在赢家之间猜拳
             print(f"\n多个赢家：{[w.name for w in winners]}，继续猜拳...")
-            temp_participants = participants
+            temp_alive = self.alive_characters
             self.alive_characters = winners
             winner = self.rock_paper_scissors()
-            self.alive_characters = temp_participants
+            self.alive_characters = temp_alive
             return winner
 
     def get_available_actions(self, character):
@@ -377,14 +388,64 @@ class Game:
                     # 显示不可用原因
                     if character.shield_charges <= 0:
                         actions.append(f"技能:{skill_name}(无次数)")
+                    elif len(character.state_history) < 2:
+                        actions.append(f"技能:{skill_name}(历史不足)")
                     else:
-                        actions.append(f"技能:{skill_name}(条件不足)")
+                        previous_state = character.state_history[-2]
+                        if previous_state.get("control", {}):
+                            actions.append(f"技能:{skill_name}(上上回合有控制)")
                 continue
 
+            # 召唤师的齐攻技能特殊处理
+            if skill_name == "齐攻" and isinstance(character, Summoner):
+                wolf_accum = character.get_accumulation("狼")
+                bear_accum = character.get_accumulation("熊")
+                if wolf_accum >= 4 or bear_accum >= 4:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(积累不足:狼{wolf_accum}/熊{bear_accum})")
+                continue
+
+            # 剑客的闪电劈技能特殊处理
+            if skill_name == "闪电劈" and isinstance(character, Swordsman):
+                has_valid_target = any(
+                    char.get_imprint("剑意") >= 3
+                    for char in self.alive_characters
+                    if char != character
+                )
+                if has_valid_target:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无有效目标)")
+                continue
+
+            # 剑客的无敌刺技能特殊处理
+            if skill_name == "无敌刺" and isinstance(character, Swordsman):
+                valid_targets = [
+                    char for char in self.alive_characters
+                    if char != character
+                       and char.has_control("lightning_strike")
+                       and id(char) not in character.invincible_strike_used
+                ]
+                if valid_targets:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无有效目标)")
+                continue
+
+            # 普通技能
             if skill.is_available():
                 actions.append(f"技能:{skill_name}")
             else:
-                # 显示冷却中的技能（不可选）
                 actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
 
         # 添加行为选项
@@ -395,7 +456,9 @@ class Game:
 
     def display_action_options(self, character):
         """显示角色的所有可用动作并获取用户输入"""
-        print(f"\n=== {character.name} 的回合 ===")
+        print(f"\n{'=' * 60}")
+        print(f"{character.name} 的回合".center(60))
+        print('=' * 60)
         print(f"当前状态: HP {character.current_hp}/{character.max_hp}")
 
         if character.control:
@@ -404,17 +467,28 @@ class Game:
             print(f"印记: {character.imprints}")
         if character.accumulations:
             print(f"积累: {character.accumulations}")
+        if isinstance(character, Knight) and hasattr(character, 'shield_charges'):
+            print(f"盾次数: {character.shield_charges}")
 
         actions = self.get_available_actions(character)
 
         print("\n可用动作：")
+        available_actions = []
         for i, action in enumerate(actions, 1):
-            print(f"{i}. {action}")
+            # 检查是否是不可用的动作
+            is_unavailable = any(
+                marker in action for marker in ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"])
+
+            if is_unavailable:
+                print(f"{i}. {action} [不可用]")
+            else:
+                print(f"{i}. {action}")
+                available_actions.append((i, action))
 
         # 获取用户输入
         while True:
             try:
-                choice = input("\n请输入动作编号或直接输入动作名称（如'游刃斩'或'到你身边'）: ").strip()
+                choice = input("\n请输入动作编号: ").strip()
 
                 # 尝试作为数字解析
                 if choice.isdigit():
@@ -422,7 +496,9 @@ class Game:
                     if 1 <= choice_num <= len(actions):
                         selected_action = actions[choice_num - 1]
                         # 检查是否是不可用的动作
-                        if "(CD:" in selected_action or "(无次数)" in selected_action or "(条件不足)" in selected_action:
+                        is_unavailable = any(marker in selected_action for marker in
+                                             ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"])
+                        if is_unavailable:
                             print("该动作当前无法使用！")
                             continue
                         return selected_action
@@ -430,19 +506,12 @@ class Game:
                         print(f"请输入1-{len(actions)}之间的数字！")
                         continue
 
-                # 尝试作为动作名称解析
-                for action in actions:
-                    if "(CD:" in action or "(无次数)" in action or "(条件不足)" in action:
-                        continue
-                    if choice in action or action.endswith(choice):
-                        return action
-
                 print("无效的输入，请重新选择！")
 
             except Exception as e:
                 print(f"输入错误：{e}，请重新输入！")
 
-    def execute_player_action(self, character, action):
+    def execute_player_action(self, character, action) -> bool:
         """执行玩家选择的动作，返回是否成功执行"""
         # 解析动作类型
         if action.startswith("技能:"):
@@ -451,28 +520,49 @@ class Game:
             # 特殊技能：盾、狼、熊 - 目标为自己，不需要选择
             if skill_name in ["盾", "狼", "熊"]:
                 print(f"\n{character.name} 使用技能 {skill_name}")
-
-                # 记录使用前的CD状态（用于废步检测）
-                old_cooldown = character.get_skill_cooldown(skill_name)
-
                 character.use_skill_on_target(skill_name, character)
-
-                # 检查是否是废步（技能CD未到）
-                if old_cooldown > 0:
-                    print(f"[废步] {skill_name} 技能冷却未完成！")
-                    return False
-
                 return True
 
             # 其他技能需要选择目标
             targets = [char for char in self.alive_characters if char != character]
+
+            # 对于有特殊目标要求的技能，进行筛选
+            if skill_name == "回旋斩":
+                # 只能选择附近的目标
+                targets = [t for t in targets if character.is_nearby(t)]
+                if not targets:
+                    print(f"回旋斩需要附近的目标，但没有角色在附近！")
+                    return False
+            elif skill_name == "闪电劈":
+                # 只能选择有3层剑意的目标
+                targets = [t for t in targets if t.get_imprint("剑意") >= 3]
+                if not targets:
+                    print(f"闪电劈需要目标有3层剑意，但没有符合条件的目标！")
+                    return False
+            elif skill_name == "无敌刺":
+                # 只能选择有闪电劈控制且未使用过无敌刺的目标
+                targets = [
+                    t for t in targets
+                    if t.has_control("lightning_strike")
+                       and id(t) not in character.invincible_strike_used
+                ]
+                if not targets:
+                    print(f"无敌刺需要目标有闪电劈控制效果，但没有符合条件的目标！")
+                    return False
+
             if not targets:
                 print(f"{character.name} 没有可用目标！")
                 return False
 
             print("\n可用目标：")
             for i, target in enumerate(targets, 1):
-                print(f"{i}. {target.name} (HP: {target.current_hp}/{target.max_hp})")
+                info = f"{target.name} (HP: {target.current_hp}/{target.max_hp})"
+                if target.imprints:
+                    info += f" 印记:{target.imprints}"
+                if target.control:
+                    info += f" 控制:{list(target.control.keys())}"
+                nearby = "★近" if character.is_nearby(target) else "  远"
+                print(f"{i}. [{nearby}] {info}")
 
             while True:
                 try:
@@ -486,11 +576,7 @@ class Game:
                 except Exception as e:
                     print(f"输入错误：{e}，请重新输入！")
 
-            print(f"\n{character.name} 使用技能 {skill_name} 攻击 {target.name}")
-
-            # 记录使用前的CD状态（用于废步检测）
-            character.get_skill_cooldown(skill_name)
-
+            print(f"\n{character.name} 使用技能 {skill_name} 对 {target.name}")
             character.use_skill_on_target(skill_name, target)
             return True
 
@@ -506,7 +592,8 @@ class Game:
 
                 print("\n选择要靠近的角色：")
                 for i, target in enumerate(targets, 1):
-                    print(f"{i}. {target.name}")
+                    nearby = "★已靠近" if character.is_nearby(target) else ""
+                    print(f"{i}. {target.name} {nearby}")
 
                 while True:
                     try:
@@ -516,6 +603,7 @@ class Game:
                             if 1 <= target_num <= len(targets):
                                 target = targets[target_num - 1]
                                 self.move_character_to_block(character, target.block_id)
+                                print(f"{character.name} 靠近了 {target.name}")
                                 return True
                         print(f"请输入1-{len(targets)}之间的数字！")
                     except Exception as e:
@@ -523,9 +611,9 @@ class Game:
 
             elif behavior == "离你远点":
                 # 创建新的独立块
-                new_block_id = id(character) + self.round_count  # 确保唯一性
+                new_block_id = id(character) + self.round_count * 1000  # 确保唯一性
                 self.move_character_to_block(character, new_block_id)
-                print(f"{character.name} 远离所有角色！")
+                print(f"{character.name} 远离了所有角色！")
                 return True
 
             elif behavior.startswith("解控-"):

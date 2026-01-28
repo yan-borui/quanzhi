@@ -118,7 +118,7 @@ class Knight(Character):
         if len(self.state_history) > self.max_history_size:
             self.state_history.pop(0)
 
-        print(f"{self.name} 记录状态，��史状态数: {len(self.state_history)}")
+        print(f"{self.name} 记录状态，历史状态数: {len(self.state_history)}")
 
     def _capture_state(self) -> Dict:
         """捕获当前状态（不包括block_id，避免盾影响行为）"""
