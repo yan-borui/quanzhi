@@ -54,7 +54,8 @@ class Character(ABC):
             "damage": 0,
             "heal": 0,
             "control_add": {},  # name -> stacks
-            "control_remove": {}  # name -> stacks
+            "control_remove": {},  # name -> stacks
+            "imprint_add": {}
         })
         # 只保留最近两个回合的记录
         if len(self.turn_effects_history) > 2:
@@ -267,6 +268,12 @@ class Character(ABC):
             return
         current_value = self.imprints.get(imprint, 0)
         self.imprints[imprint] = current_value + value
+
+        # 记录本回合新增印记
+        if value > 0:
+            log = self._current_turn_log()
+            log["imprint_add"][imprint] = log["imprint_add"].get(imprint, 0) + value
+
         print(f"{self.name} 获得了 {imprint} 印记，值: {value}，当前值: {self.imprints[imprint]}")
 
     def get_imprint(self, imprint: str) -> int:

@@ -72,7 +72,7 @@ class Knight(Character):
         return True
 
     def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        """盾效果：移除上一回合对自己的伤害与新增控制"""
+        """盾效果：移除上一回合对自己的伤害、控制与新增的印记"""
         self.shield_charges -= 1
 
         if len(self.turn_effects_history) < 2:
@@ -94,15 +94,23 @@ class Knight(Character):
                 if self.control[ctrl] <= 0:
                     del self.control[ctrl]
 
+        # 撤销上一回合新增的印记
+        for imp, val in last_turn.get("imprint_add", {}).items():
+            if imp in self.imprints:
+                self.imprints[imp] -= val
+                if self.imprints[imp] <= 0:
+                    del self.imprints[imp]
+
         # 清空上一回合的记录，避免重复抵消
         self.turn_effects_history[-2] = {
             "damage": 0,
             "heal": 0,
             "control_add": {},
-            "control_remove": {}
+            "control_remove": {},
+            "imprint_add": {}
         }
 
-        print(f"{self.name} 使用盾，抵消了上一回合的伤害与控制！ (返还{dmg}伤害)")
+        print(f"{self.name} 使用盾，抵消了上一回合的伤害、控制与新增印记！ (返还{dmg}伤害)")
         print(f"盾技能剩余使用次数: {self.shield_charges}")
         return True
 
