@@ -11,69 +11,42 @@ from Swordsman import Swordsman
 
 class Game:
     def __init__(self):
-        # 初始化三个角色
         self.knight = Knight("骑士")
         self.summoner = Summoner("召唤师")
         self.swordsman = Swordsman("剑客")
 
-        # 所有角色的列表
         self.all_characters = [self.knight, self.summoner, self.swordsman]
-
-        # 存活角色列表
         self.alive_characters = self.all_characters.copy()
-
-        # 回合计数器
         self.round_count = 0
-
-        # 初始化块系统
         self.initialize_block_system()
 
     def initialize_block_system(self):
-        """初始化块系统，每个角色在自己的块中"""
-        # 初始时每个角色在自己的块，邻接表只包含自己
         for char in self.all_characters:
             char.block_id = id(char)
             char.nearby_characters = [char]
 
     def reset_game(self):
-        """重置游戏到初始状态"""
         print("\n=== 重置游戏 ===")
-
-        # 重新创建角色
         self.knight = Knight("骑士")
         self.summoner = Summoner("召唤师")
         self.swordsman = Swordsman("剑客")
 
-        # 重置角色列表
         self.all_characters = [self.knight, self.summoner, self.swordsman]
         self.alive_characters = self.all_characters.copy()
-
-        # 重置回合计数
         self.round_count = 0
-
-        # 重新初始化块系统
         self.initialize_block_system()
-
         print("游戏已重置！\n")
 
     def is_game_over(self):
-        """判断游戏是否结束"""
-        # 更新存活角色
         self.update_alive_characters()
-
-        # 如果只剩1个或0个角色存活，游戏结束
         if len(self.alive_characters) <= 1:
             return True
-
-        # 可以添加其他结束条件，比如回合数上限
         if self.round_count >= 100:
             print("\n达到最大回合数限制！")
             return True
-
         return False
 
     def display_game_over(self):
-        """显示游戏结束信息"""
         print("\n" + "=" * 60)
         print("=== 游戏结束 ===")
         print("=" * 60)
@@ -97,40 +70,35 @@ class Game:
         print("=" * 60)
 
     def play_round(self):
-        """执行一个完整的回合"""
         self.round_count += 1
 
-        # 回合开始时调用所有角色的 on_turn_start（如果有的话）
+        # 开启本回合的事件记录
+        for char in self.all_characters:
+            if hasattr(char, "start_new_turn_log"):
+                char.start_new_turn_log()
+
+        # 回合开始时调用 on_turn_start
         for char in self.all_characters:
             if hasattr(char, 'on_turn_start'):
                 char.on_turn_start()
 
         self.display_battle_status()
-
-        # 回合开始时减少所有技能冷却
         self.reduce_all_cooldowns()
 
-        # 石头剪刀布决定行动顺序
         winner = self.rock_paper_scissors()
-
         if winner is None:
             print("没有角色可以行动！")
             return
 
         print(f"\n>>> 本回合由 {winner.name} 先手！")
-
-        # 获取并执行玩家动作
         action = self.display_action_options(winner)
         success = self.execute_player_action(winner, action)
 
-        # 如果是废步，提示并跳过
         if not success:
             print(f"\n[警告] {winner.name} 的动作未能成功执行（废步）")
 
-        # 更新存活状态
         self.update_alive_characters()
 
-        # 显示回合结束状态
         print(f"\n{'=' * 60}")
         print(f"第 {self.round_count} 回合结束".center(60))
         print('=' * 60)
@@ -143,7 +111,6 @@ class Game:
         print('=' * 60)
 
     def start(self):
-        """开始游戏主循环"""
         print("=" * 60)
         print("欢迎来到角色战斗游戏！".center(60))
         print("=" * 60)
@@ -156,14 +123,10 @@ class Game:
         print("  3. 最后存活的角色获胜")
         print("=" * 60)
 
-        # 游戏主循环（去除��有不必要的暂停）
         while not self.is_game_over():
             try:
                 self.play_round()
-
-                # 回合之间添加短暂延迟，让玩家有时间看清结果
                 time.sleep(0.5)
-
             except KeyboardInterrupt:
                 print("\n\n游戏被中断！")
                 choice = input("是否退出游戏？(y/n): ").strip().lower()
@@ -178,56 +141,38 @@ class Game:
                 if choice != 'y':
                     return
 
-        # 显示游戏结束信息
         self.display_game_over()
-
-        # 询问是否重新开始
         choice = input("\n是否重新开始游戏？(y/n): ").strip().lower()
         if choice == 'y':
             self.reset_game()
             self.start()
 
     def run(self):
-        """run方法，与start相同（提供多个入口）"""
         self.start()
 
     def move_character_to_block(self, character: Character, target_block_id: int):
-        """将角色移动到目标块"""
         old_block_id = character.block_id
-
         if old_block_id == target_block_id:
             print(f"{character.name} 已经在目标位置")
             return
 
-        # 从旧块中移除（清理旧的邻接关系）
         old_block_chars = [c for c in self.all_characters if c.block_id == old_block_id and c != character]
         for other_char in old_block_chars:
             if character in other_char.nearby_characters:
                 other_char.nearby_characters.remove(character)
 
-        # 更新角色的块ID
         character.block_id = target_block_id
-
-        # 重建所有块的邻接表
         self.rebuild_all_nearby_lists()
-
         print(f"{character.name} 移动到块 {target_block_id}")
 
     def rebuild_all_nearby_lists(self):
-        """重建所有角色的邻接表（基于block_id）"""
-        # 按块分组
         blocks = {}
         for char in self.all_characters:
-            if char.block_id not in blocks:
-                blocks[char.block_id] = []
-            blocks[char.block_id].append(char)
-
-        # 为每个角色重建邻接表
+            blocks.setdefault(char.block_id, []).append(char)
         for char in self.all_characters:
             char.nearby_characters = blocks[char.block_id].copy()
 
     def count_characters_in_block(self, block_id: int) -> int:
-        """计算块中的角色数量"""
         count = 0
         for char in self.all_characters:
             if char.block_id == block_id:
@@ -235,28 +180,22 @@ class Game:
         return count
 
     def is_nearby(self, char1: Character, char2: Character) -> bool:
-        """检查两个角色是否在同一块中（是否靠近）"""
         return char1.block_id == char2.block_id
 
     def get_block_members(self, block_id: int) -> List[Character]:
-        """获取指定块中的所有角色"""
         return [char for char in self.all_characters if char.block_id == block_id]
 
     def get_random_alive_character(self):
-        """随机获取一个存活的角色"""
         return random.choice(self.alive_characters) if self.alive_characters else None
 
     def get_random_target(self, attacker):
-        """为攻击者随机选择一个目标（不能是自己）"""
         possible_targets = [char for char in self.alive_characters if char != attacker]
         return random.choice(possible_targets) if possible_targets else None
 
     def update_alive_characters(self):
-        """更新存活角色列表"""
         self.alive_characters = [char for char in self.all_characters if char.is_alive()]
 
     def display_battle_status(self):
-        """显示战斗状态"""
         print(f"\n{'=' * 60}")
         print(f"第 {self.round_count + 1} 回合开始".center(60))
         print('=' * 60)
@@ -266,7 +205,6 @@ class Game:
             hp_bar = self.get_hp_bar(char)
             print(f"{char.name:10} [{status:4}] {hp_bar} {char.current_hp:2}/{char.max_hp:2} HP")
 
-            # 显示状态信息
             status_info = []
             if char.control:
                 status_info.append(f"控制:{list(char.control.keys())}")
@@ -283,27 +221,20 @@ class Game:
         print('=' * 60)
 
     def get_hp_bar(self, character: Character, bar_length: int = 20) -> str:
-        """生成生命值条（使用ASCII字符，兼容GBK编码）"""
         if character.max_hp == 0:
             return '[' + ' ' * bar_length + ']'
-
         filled_length = int(bar_length * character.current_hp / character.max_hp)
         bar = '=' * filled_length + '-' * (bar_length - filled_length)
         return f'[{bar}]'
 
     def reduce_all_cooldowns(self):
-        """所有角色的技能冷却减少1回合"""
         for char in self.all_characters:
             char.reduce_all_cooldowns()
 
     def rock_paper_scissors(self):
-        """三个角色进行石头剪刀布，返回赢家"""
         print("\n=== 石头剪刀布环节 ===")
-
-        # 确定可参与的角色：存活的角色 + 死亡但有盾次数的骑士
         participants = self.alive_characters.copy()
 
-        # 如果骑士死了但可以使用盾，也让它参与
         if not self.knight.is_alive() and isinstance(self.knight, Knight) and self.knight.can_use_shield():
             participants.append(self.knight)
             print(f"{self.knight.name} 虽已阵亡，但仍有盾技能可用，参与本回合！")
@@ -311,7 +242,6 @@ class Game:
         if not participants:
             return None
 
-        # 为每个参与者随机选择出拳
         choices = ['石头', '剪刀', '布']
         player_choices = {}
 
@@ -320,7 +250,6 @@ class Game:
             player_choices[char] = choice
             print(f"{char.name} 出了：{choice}")
 
-        # 判断赢家
         unique_choices = set(player_choices.values())
 
         if len(unique_choices) == 1:
@@ -331,7 +260,6 @@ class Game:
             print("三种都有，平局！重新开始...")
             return self.rock_paper_scissors()
 
-        # 确定赢的出拳类型
         winning_choice = None
         if '石头' in unique_choices and '剪刀' in unique_choices:
             winning_choice = '石头'
@@ -340,7 +268,6 @@ class Game:
         elif '布' in unique_choices and '石头' in unique_choices:
             winning_choice = '布'
 
-        # 找出所有赢家
         winners = [char for char, choice in player_choices.items() if choice == winning_choice]
 
         if len(winners) == 1:
@@ -348,7 +275,6 @@ class Game:
             print(f"{winner.name} 获胜！")
             return winner
         else:
-            # 多个赢家，重新在赢家之间猜拳
             print(f"多个赢家：{[w.name for w in winners]}，继续猜拳...")
             temp_alive = self.alive_characters
             self.alive_characters = winners
@@ -357,47 +283,32 @@ class Game:
             return winner
 
     def get_available_actions(self, character):
-        """获取角色的所有可用动作选项"""
         actions = []
-
-        # 如果角色被控制
         if character.control:
-            # 骑士可以使用盾（如果满足条件）
             if isinstance(character, Knight) and character.can_use_shield():
                 actions.append("技能:盾")
-
-            # 添加解控选项
             for control_name in character.control.keys():
                 actions.append(f"行为:解控-{control_name}")
-
             return actions
 
-        # 如果角���死亡
         if not character.is_alive():
-            # 只有骑士死后可以使用盾
             if isinstance(character, Knight) and character.can_use_shield():
                 actions.append("技能:盾")
             return actions
 
-        # 没有被控制且存活时，添加可用技能
         for skill_name, skill in character.skills.items():
-            # 骑士的盾技能特殊处理
             if skill_name == "盾" and isinstance(character, Knight):
                 if character.can_use_shield():
                     actions.append(f"技能:{skill_name}")
                 else:
-                    # 显示不可用原因
                     if character.shield_charges <= 0:
                         actions.append(f"技能:{skill_name}(无次数)")
                     elif len(character.state_history) < 2:
                         actions.append(f"技能:{skill_name}(历史不足)")
                     else:
-                        previous_state = character.state_history[-2]
-                        if previous_state.get("control", {}):
-                            actions.append(f"技能:{skill_name}(上上回合有控制)")
+                        actions.append(f"技能:{skill_name}(不可用)")
                 continue
 
-            # 召唤师的齐攻技能特殊处理
             if skill_name == "齐攻" and isinstance(character, Summoner):
                 wolf_accum = character.get_accumulation("狼")
                 bear_accum = character.get_accumulation("熊")
@@ -410,7 +321,6 @@ class Game:
                     actions.append(f"技能:{skill_name}(积累不足:狼{wolf_accum}/熊{bear_accum})")
                 continue
 
-            # 剑客的闪电劈技能特殊处理
             if skill_name == "闪电劈" and isinstance(character, Swordsman):
                 has_valid_target = any(
                     char.get_imprint("剑意") >= 3
@@ -426,7 +336,6 @@ class Game:
                     actions.append(f"技能:{skill_name}(无有效目标)")
                 continue
 
-            # 剑客的无敌刺技能特殊处理
             if skill_name == "无敌刺" and isinstance(character, Swordsman):
                 valid_targets = [
                     char for char in self.alive_characters
@@ -443,20 +352,16 @@ class Game:
                     actions.append(f"技能:{skill_name}(无有效目标)")
                 continue
 
-            # 普通技能
             if skill.is_available():
                 actions.append(f"技能:{skill_name}")
             else:
                 actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
 
-        # 添加行为选项
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
-
         return actions
 
     def display_action_options(self, character):
-        """显示角色的所有可用动作并获取用户输入"""
         print(f"\n{'=' * 60}")
         print(f"{character.name} 的回合".center(60))
         print('=' * 60)
@@ -476,27 +381,21 @@ class Game:
         print("\n可用动作：")
         available_actions = []
         for i, action in enumerate(actions, 1):
-            # 检查是否是不可用的动作
             is_unavailable = any(
                 marker in action for marker in ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"])
-
             if is_unavailable:
                 print(f"{i}. {action} [不可用]")
             else:
                 print(f"{i}. {action}")
                 available_actions.append((i, action))
 
-        # 获取用户输入
         while True:
             try:
                 choice = input("\n请输入动作编号: ").strip()
-
-                # 尝试作为数字解析
                 if choice.isdigit():
                     choice_num = int(choice)
                     if 1 <= choice_num <= len(actions):
                         selected_action = actions[choice_num - 1]
-                        # 检查是否是不可用的动作
                         is_unavailable = any(marker in selected_action for marker in
                                              ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"])
                         if is_unavailable:
@@ -506,42 +405,32 @@ class Game:
                     else:
                         print(f"请输入1-{len(actions)}之间的数字！")
                         continue
-
                 print("无效的输入，请重新选择！")
-
             except Exception as e:
                 print(f"输入错误：{e}，请重新输入！")
 
     def execute_player_action(self, character, action) -> bool:
-        """执行玩家选择的动作，返回是否成功执行"""
-        # 解析动作类型
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
 
-            # 特殊技能：盾、狼、熊 - 目标为自己，不需要选择
             if skill_name in ["盾", "狼", "熊"]:
                 print(f"\n>>> {character.name} 使用技能 {skill_name}")
                 character.use_skill_on_target(skill_name, character)
                 return True
 
-            # 其他技能需要选择目标
             targets = [char for char in self.alive_characters if char != character]
 
-            # 对于有特殊目标要求的技能，进行筛选
             if skill_name == "回旋斩":
-                # 只能选择附近的目标
                 targets = [t for t in targets if character.is_nearby(t)]
                 if not targets:
                     print(f"回旋斩需要附近的目标，但没有角色在附近！")
                     return False
             elif skill_name == "闪电劈":
-                # 只能选择有3层剑意的目标
                 targets = [t for t in targets if t.get_imprint("剑意") >= 3]
                 if not targets:
                     print(f"闪电劈需要目标有3层剑意，但没有符合条件的目标！")
                     return False
-            elif skill_name == "无敌��":
-                # 只能选择有闪电劈控制且未使用过无敌刺的目标
+            elif skill_name == "无敌刺":
                 targets = [
                     t for t in targets
                     if t.has_control("lightning_strike")
@@ -585,7 +474,6 @@ class Game:
             behavior = action.replace("行为:", "").strip()
 
             if behavior == "到你身边":
-                # 选择要靠近的目标
                 targets = [char for char in self.alive_characters if char != character]
                 if not targets:
                     print("没有可靠近的目标！")
@@ -611,8 +499,7 @@ class Game:
                         print(f"输入错误：{e}")
 
             elif behavior == "离你远点":
-                # 创建新的独立块
-                new_block_id = id(character) + self.round_count * 1000  # 确保唯一性
+                new_block_id = id(character) + self.round_count * 1000
                 self.move_character_to_block(character, new_block_id)
                 print(f">>> {character.name} 远离了所有角色！")
                 return True
@@ -630,9 +517,7 @@ class Game:
         return False
 
 
-# 游戏入口
 def main():
-    """游戏主函数"""
     game = Game()
     game.start()
 
