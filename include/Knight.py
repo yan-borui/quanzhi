@@ -16,6 +16,14 @@ class Knight(Character):
         self.state_history = [self._capture_state(), self._capture_state()]  # 存储最近三回合的状态
         self.max_history_size = 3  # 最大历史状态数量
 
+        # 轮次与窗口控制
+        self.current_round: int = 0
+        self.death_shield_window_active: bool = False
+        self.death_shield_window_round: Optional[int] = None
+
+        self.control_shield_window_open: bool = False
+        self.control_shield_window_round: Optional[int] = None
+
     def _initialize_skills(self):
         """初始化骑士的技能"""
         fearless_charge = Skill("无畏冲锋", cooldown=3)
@@ -46,6 +54,10 @@ class Knight(Character):
             if len(self.state_history) < 2:
                 print(f"没有足够的历史状态使用盾技能！")
                 return
+            if not self.can_use_shield():
+                print(f"{self.name} 当前不满足使用盾的条件！")
+                return
+
             success = skill.execute_with_target(self, target)
             if success:
                 print(f"{self.name} 使用了 {skill_name}")
@@ -74,6 +86,14 @@ class Knight(Character):
     def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """盾效果：移除上一回合对自己的伤害、控制与新增的印记"""
         self.shield_charges -= 1
+
+        if self.death_shield_window_active:
+            # 使用后关闭死亡窗口（无论是否复活成功）
+            self.expire_death_shield_window()
+
+        # 使用盾视为已消耗“被控首回合”的窗口
+        self.control_shield_window_open = False
+        self.control_shield_window_round = None
 
         if len(self.turn_effects_history) < 2:
             print(f"{self.name} 没有上一回合的记录，盾无效果")
@@ -115,7 +135,32 @@ class Knight(Character):
         return True
 
     def on_turn_start(self):
-        """每回合开始时调用，记录当前状态"""
+        """每回合开始时调用，记录当前状态，并管理盾使用窗口"""
+        # 管理“死亡后一回合”窗口过期
+        if (
+            self.death_shield_window_active
+            and self.death_shield_window_round is not None
+            and self.current_round > self.death_shield_window_round
+        ):
+            self.expire_death_shield_window()
+
+        # 检查控制状态转变（无控 -> 有控）
+        prev_control = bool(self.state_history[-1]["control"]) if self.state_history else False
+        current_control = bool(self.control)
+
+        if (not prev_control) and current_control:
+            # 首次被控的回合，开启“可用盾”窗口
+            self.control_shield_window_open = True
+            self.control_shield_window_round = self.current_round
+        elif (
+            self.control_shield_window_open
+            and self.control_shield_window_round is not None
+            and self.current_round > self.control_shield_window_round
+        ):
+            # 超出“被控首回合”，关闭窗口
+            self.control_shield_window_open = False
+            self.control_shield_window_round = None
+
         current_state = self._capture_state()
         self.state_history.append(current_state)
         if len(self.state_history) > self.max_history_size:
@@ -147,7 +192,23 @@ class Knight(Character):
             return False
         if len(self.state_history) < 2:
             return False
-        return True
+
+        # 死亡后的特殊窗口：仅死亡后的首回合可用
+        if not self.is_alive():
+            return (
+                self.death_shield_window_active
+                and self.death_shield_window_round is not None
+                and self.current_round == self.death_shield_window_round
+            )
+
+        # 存活时：只能在“从无控到有控”的首回合使用，且当前必须有控制
+        if not self.control:
+            return False
+        if not self.control_shield_window_open:
+            return False
+        if self.control_shield_window_round is None:
+            return False
+        return self.current_round == self.control_shield_window_round
 
     def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
         if new_behavior == BehaviorType.MOVE_CLOSE:
@@ -162,7 +223,25 @@ class Knight(Character):
         self.shield_charges = 5
         current_state = self._capture_state()
         self.state_history = [current_state.copy() for _ in range(self.max_history_size)]
+        self.death_shield_window_active = False
+        self.death_shield_window_round = None
+        self.control_shield_window_open = False
+        self.control_shield_window_round = None
         print(f"{self.name} 准备就绪，盾技能使用次数重置为5，历史状态已清空")
+
+    # 供外部（Game）调用的辅助方法
+    def open_death_shield_window(self, allowed_round: int):
+        """骑士死亡时，开启仅限下回合的盾使用窗口"""
+        self.death_shield_window_active = True
+        self.death_shield_window_round = allowed_round
+        print(f"{self.name} 陷入濒死，盾可在第 {allowed_round} 回合尝试使用！")
+
+    def expire_death_shield_window(self):
+        """关闭死亡后的盾使用窗口"""
+        if self.death_shield_window_active:
+            print(f"{self.name} 失去死亡后盾的机会！")
+        self.death_shield_window_active = False
+        self.death_shield_window_round = None
 
 
 KNIGHT_SKILLS_DATA = {
