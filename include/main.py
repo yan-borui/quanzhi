@@ -7,15 +7,24 @@ from Character import Character
 from Knight import Knight
 from Summoner import Summoner
 from Swordsman import Swordsman
+# 导入角色初始化以注册所有角色
+import character_init
+from character_selection import select_characters, quick_select_default_characters
 
 
 class Game:
-    def __init__(self):
-        self.knight = Knight("骑士")
-        self.summoner = Summoner("召唤师")
-        self.swordsman = Swordsman("剑客")
-
-        self.all_characters = [self.knight, self.summoner, self.swordsman]
+    def __init__(self, characters: List[Character] = None):
+        """
+        初始化游戏
+        
+        Args:
+            characters: 参战角色列表。如果为None，将使用默认配置（骑士、召唤师、剑客）
+        """
+        if characters is None or len(characters) == 0:
+            # 使用默认角色
+            characters = quick_select_default_characters()
+        
+        self.all_characters = characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
         self.initialize_block_system()
@@ -27,11 +36,14 @@ class Game:
 
     def reset_game(self):
         print("\n=== 重置游戏 ===")
-        self.knight = Knight("骑士")
-        self.summoner = Summoner("召唤师")
-        self.swordsman = Swordsman("剑客")
-
-        self.all_characters = [self.knight, self.summoner, self.swordsman]
+        # 重新创建所有角色（保持相同类型和名称）
+        new_characters = []
+        for char in self.all_characters:
+            char_class = type(char)
+            new_char = char_class(char.name)
+            new_characters.append(new_char)
+        
+        self.all_characters = new_characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
         self.initialize_block_system()
@@ -261,9 +273,12 @@ class Game:
         print("\n=== 石头剪刀布环节 ===")
         participants = self.alive_characters.copy()
 
-        if not self.knight.is_alive() and isinstance(self.knight, Knight) and self.knight.can_use_shield():
-            participants.append(self.knight)
-            print(f"{self.knight.name} 虽已阵亡，但仍有盾技能可用，参与本回合！")
+        # 检查所有死亡的骑士是否可以使用盾技能参与本回合
+        for char in self.all_characters:
+            if not char.is_alive() and isinstance(char, Knight) and char.can_use_shield():
+                if char not in participants:
+                    participants.append(char)
+                    print(f"{char.name} 虽已阵亡，但仍有盾技能可用，参与本回合！")
 
         if not participants:
             return None
@@ -544,7 +559,38 @@ class Game:
 
 
 def main():
-    game = Game()
+    print("=" * 60)
+    print("欢迎来到角色战斗游戏！".center(60))
+    print("=" * 60)
+    print("\n游戏模式选择：")
+    print("1. 自定义角色选择")
+    print("2. 使用默认角色（骑士、召唤师、剑客）")
+    
+    while True:
+        try:
+            choice = input("\n请选择游戏模式 (1-2): ").strip()
+            if choice == "1":
+                # 自定义选择角色
+                characters = select_characters(min_players=2, max_players=6)
+                break
+            elif choice == "2":
+                # 使用默认角色
+                characters = quick_select_default_characters()
+                break
+            else:
+                print("无效选择，请输入 1 或 2")
+        except KeyboardInterrupt:
+            print("\n\n游戏已退出。")
+            return
+        except Exception as e:
+            print(f"错误: {e}")
+            print("请重新选择")
+    
+    if not characters:
+        print("没有选择角色，游戏退出。")
+        return
+    
+    game = Game(characters)
     game.start()
 
 
