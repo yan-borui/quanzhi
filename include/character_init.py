@@ -7,6 +7,8 @@ from CharacterFactory import register_character
 from Knight import Knight, KNIGHT_STATS_DATA
 from Summoner import Summoner, SUMMONER_STATS_DATA
 from Swordsman import Swordsman, SWORDSMAN_STATS_DATA
+# 示例：取消下面的注释以启用法师角色
+# from Mage import Mage, MAGE_STATS_DATA
 
 
 def initialize_characters():
@@ -38,6 +40,15 @@ def initialize_characters():
         description=SWORDSMAN_STATS_DATA.get("description", ""),
         stats=SWORDSMAN_STATS_DATA
     )
+    
+    # 示例：注册法师（取消下面的注释以启用）
+    # register_character(
+    #     role_id="mage",
+    #     character_class=Mage,
+    #     display_name=MAGE_STATS_DATA.get("name", "法师"),
+    #     description=MAGE_STATS_DATA.get("description", ""),
+    #     stats=MAGE_STATS_DATA
+    # )
 
 
 # 模块导入时自动初始化
