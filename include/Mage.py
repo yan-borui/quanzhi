@@ -43,20 +43,26 @@ class Mage(Character):
             print(f"{self.name} 没有技能: {skill_name}")
             return
         
-        # 检查法力值
+        if not skill.is_available():
+            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            return
+        
+        # 检查法力值（在执行前检查并扣除）
         mana_cost = self._get_mana_cost(skill_name)
         if self.mana < mana_cost:
             print(f"法力值不足！需要 {mana_cost}，当前 {self.mana}")
             return
         
-        if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
+        # 先扣除法力值，确保原子性
+        self.mana -= mana_cost
         
         success = skill.execute_with_target(self, target)
         if success:
-            self.mana -= mana_cost
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}，消耗 {mana_cost} 法力 (剩余: {self.mana})")
+        else:
+            # 如果技能失败，退还法力值
+            self.mana += mana_cost
+            print(f"{self.name} 施放 {skill_name} 失败，法力值已退还")
     
     def _get_mana_cost(self, skill_name: str) -> int:
         """获取技能法力消耗"""
