@@ -222,16 +222,17 @@ class Game:
         prev_alive = set(self.alive_characters)
         self.alive_characters = [char for char in self.all_characters if char.is_alive()]
 
-        # 记录骑士死亡的瞬间，以便开启“死亡后盾”窗口
-        if isinstance(self.knight, Knight):
-            was_alive = self.knight in prev_alive
-            is_alive_now = self.knight in self.alive_characters
-            if was_alive and not is_alive_now:
-                # 死亡发生在当前回合，下一回合（round_count + 1）是唯一可用盾的窗口
-                self.knight.open_death_shield_window(self.round_count + 1)
-            elif (not was_alive) and is_alive_now:
-                # 骑士已复活，关闭死亡窗口
-                self.knight.expire_death_shield_window()
+        # 记录所有骑士角色的死亡/复活，以便开启/关闭"死亡后盾"窗口
+        for char in self.all_characters:
+            if isinstance(char, Knight):
+                was_alive = char in prev_alive
+                is_alive_now = char in self.alive_characters
+                if was_alive and not is_alive_now:
+                    # 死亡发生在当前回合
+                    char.on_death_event(self.round_count)
+                elif (not was_alive) and is_alive_now:
+                    # 角色已复活，关闭死亡窗口
+                    char.on_revive_event()
 
     def display_battle_status(self):
         print(f"\n{'=' * 60}")
