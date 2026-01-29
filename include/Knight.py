@@ -242,6 +242,16 @@ class Knight(Character):
             print(f"{self.name} 失去死亡后盾的机会！")
         self.death_shield_window_active = False
         self.death_shield_window_round = None
+    
+    def on_death_event(self, current_round: int):
+        """角色死亡时的事件处理（供Game调用）"""
+        # 死亡发生在当前回合，下一回合（current_round + 1）是唯一可用盾的窗口
+        self.open_death_shield_window(current_round + 1)
+    
+    def on_revive_event(self):
+        """角色复活时的事件处理（供Game调用）"""
+        # 骑士已复活，关闭死亡窗口
+        self.expire_death_shield_window()
 
 
 KNIGHT_SKILLS_DATA = {
