@@ -10,6 +10,10 @@ from Swordsman import Swordsman
 # 导入角色初始化以注册所有角色
 import character_init
 from character_selection import select_characters, quick_select_default_characters
+# 导入新系统
+from DualJudgmentSystem import DualJudgmentSystem, JudgmentResult
+from ContinuousEffectSystem import ContinuousEffectSystem, ContinuousEffect, RemovalCondition
+from StateBindingSystem import StateBindingSystem
 
 
 class Game:
@@ -27,6 +31,12 @@ class Game:
         self.all_characters = characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
+        
+        # 初始化新系统
+        self.dual_judgment_system = DualJudgmentSystem()
+        self.continuous_effect_system = ContinuousEffectSystem()
+        self.state_binding_system = StateBindingSystem()
+        
         self.initialize_block_system()
 
     def initialize_block_system(self):
@@ -46,6 +56,12 @@ class Game:
         self.all_characters = new_characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
+        
+        # 重置新系统
+        self.dual_judgment_system = DualJudgmentSystem()
+        self.continuous_effect_system = ContinuousEffectSystem()
+        self.state_binding_system = StateBindingSystem()
+        
         self.initialize_block_system()
         print("游戏已重置！\n")
 
@@ -97,6 +113,11 @@ class Game:
         for char in self.all_characters:
             if hasattr(char, 'on_turn_start'):
                 char.on_turn_start()
+
+        # 处理持续效果（在回合开始时触发）
+        for char in self.all_characters:
+            if char.is_alive():
+                self.continuous_effect_system.trigger_all_effects(char)
 
         self.display_battle_status()
         self.reduce_all_cooldowns()
@@ -188,6 +209,10 @@ class Game:
 
         character.block_id = target_block_id
         self.rebuild_all_nearby_lists()
+        
+        # 触发移动事件，检查是否需要移除持续效果
+        self.continuous_effect_system.check_and_remove_on_event(character, "movement")
+        
         print(f"{character.name} 移动到块 {target_block_id}")
 
     def rebuild_all_nearby_lists(self):
@@ -556,6 +581,20 @@ class Game:
                     return False
 
         return False
+
+    # ===== 新系统访问方法 =====
+    
+    def get_dual_judgment_system(self) -> DualJudgmentSystem:
+        """获取双人判定系统"""
+        return self.dual_judgment_system
+    
+    def get_continuous_effect_system(self) -> ContinuousEffectSystem:
+        """获取持续效果系统"""
+        return self.continuous_effect_system
+    
+    def get_state_binding_system(self) -> StateBindingSystem:
+        """获取状态绑定系统"""
+        return self.state_binding_system
 
 
 def main():
