@@ -113,15 +113,14 @@ class Game:
         if not success:
             print(f"\n[警告] {winner.name} 的动作未能成功执行（废步）")
 
-        # 如果骑士处于“死亡后盾可用”的窗口但未获得出手机会，则失去机会
-        if (
-            isinstance(self.knight, Knight)
-            and self.knight.death_shield_window_active
-            and not self.knight.is_alive()
-            and self.knight.death_shield_window_round == self.round_count
-            and winner is not self.knight
-        ):
-            self.knight.expire_death_shield_window()
+        # 检查所有骑士角色的死亡盾窗口过期（针对死亡后未获得出手机会的情况）
+        for char in self.all_characters:
+            if isinstance(char, Knight):
+                if (char.death_shield_window_active
+                    and not char.is_alive()
+                    and char.death_shield_window_round == self.round_count
+                    and winner is not char):
+                    char.expire_death_shield_window()
 
         self.update_alive_characters()
 
