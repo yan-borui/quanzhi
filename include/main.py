@@ -23,7 +23,7 @@ class Game:
         if characters is None or len(characters) == 0:
             # 使用默认角色
             characters = quick_select_default_characters()
-        
+
         self.all_characters = characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
@@ -42,7 +42,7 @@ class Game:
             char_class = type(char)
             new_char = char_class(char.name)
             new_characters.append(new_char)
-        
+
         self.all_characters = new_characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
@@ -117,9 +117,9 @@ class Game:
         for char in self.all_characters:
             if isinstance(char, Knight):
                 if (char.death_shield_window_active
-                    and not char.is_alive()
-                    and char.death_shield_window_round == self.round_count
-                    and winner is not char):
+                        and not char.is_alive()
+                        and char.death_shield_window_round == self.round_count
+                        and winner is not char):
                     char.expire_death_shield_window()
 
         self.update_alive_characters()
@@ -565,7 +565,7 @@ def main():
     print("\n游戏模式选择：")
     print("1. 自定义角色选择")
     print("2. 使用默认角色（骑士、召唤师、剑客）")
-    
+
     while True:
         try:
             choice = input("\n请选择游戏模式 (1-2): ").strip()
@@ -585,11 +585,11 @@ def main():
         except Exception as e:
             print(f"错误: {e}")
             print("请重新选择")
-    
+
     if not characters:
         print("没有选择角色，游戏退出。")
         return
-    
+
     game = Game(characters)
     game.start()
 
