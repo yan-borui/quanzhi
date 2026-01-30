@@ -133,6 +133,12 @@ class Character(ABC):
             print(f"{self.name} 未受到有效伤害: {damage}")
             return
 
+        # 单次护盾效果：抵消一次攻击后消失
+        if self.has_control("护盾"):
+            self.clear_control("护盾")
+            print(f"{self.name} 的护盾抵消了这次攻击！")
+            return
+
         was_alive = self.is_alive()
         self.current_hp -= damage
         if self.current_hp < 0:
