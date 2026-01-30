@@ -12,6 +12,7 @@ from characters.array_master import ArrayMaster, ARRAY_MASTER_STATS_DATA
 from characters.healer import Healer, HEALER_STATS_DATA
 from characters.scholar import Scholar, SCHOLAR_STATS_DATA
 from characters.oil_master import OilMaster, OIL_MASTER_STATS_DATA
+from characters.target import Target, TARGET_STATS_DATA
 
 
 def initialize_characters():
@@ -87,6 +88,15 @@ def initialize_characters():
         display_name=OIL_MASTER_STATS_DATA.get("name", "卖油翁"),
         description=OIL_MASTER_STATS_DATA.get("description", ""),
         stats=OIL_MASTER_STATS_DATA
+    )
+    
+    # 注册靶子
+    register_character(
+        role_id="target",
+        character_class=Target,
+        display_name=TARGET_STATS_DATA.get("name", "靶子"),
+        description=TARGET_STATS_DATA.get("description", ""),
+        stats=TARGET_STATS_DATA
     )
 
 
