@@ -10,14 +10,14 @@
 
 ### 1. 创建角色类
 
-在 `include/` 目录下创建新的角色文件，例如 `Archer.py`:
+在 `include/characters/` 目录下创建新的角色文件，例如 `archer.py`:
 
 ```python
 # -*- coding: utf-8 -*-
-# Archer.py
+# archer.py
 from typing import Optional
-from Character import Character
-from Skill import Skill
+from core.character import Character
+from core.skill import Skill
 
 class Archer(Character):
     def __init__(self, name: str = "弓箭手"):
@@ -109,11 +109,11 @@ ARCHER_STATS_DATA = {
 
 ### 2. 注册角色到系统
 
-在 `character_init.py` 中注册新角色:
+在 `include/factory/character_init.py` 中注册新角色:
 
 ```python
 # 在文件开头添加导入
-from Archer import Archer, ARCHER_STATS_DATA
+from characters.archer import Archer, ARCHER_STATS_DATA
 
 # 在 initialize_characters() 函数中添加注册代码
 def initialize_characters():
@@ -136,8 +136,11 @@ def initialize_characters():
 创建测试脚本验证新角色:
 
 ```python
-import character_init
-from CharacterFactory import get_character_factory
+import sys
+sys.path.insert(0, 'include')
+
+import factory.character_init
+from factory.character_factory import get_character_factory
 from main import Game
 
 factory = get_character_factory()
@@ -217,17 +220,20 @@ def on_behavior_change(self, old_behavior, new_behavior):
 ## 示例角色设计
 
 查看现有角色了解更多设计模式:
-- `Knight.py` - 防御型角色，带状态回退机制
-- `Summoner.py` - 累积型角色，需要积攒资源
-- `Swordsman.py` - 连击型角色，印记触发机制
+- `include/characters/knight.py` - 防御型角色，带状态回退机制
+- `include/characters/summoner.py` - 累积型角色，需要积攒资源
+- `include/characters/swordsman.py` - 连击型角色，印记触发机制
 
 ## 调试技巧
 
 使用以下代码快速测试新角色:
 
 ```python
-import character_init
-from CharacterFactory import get_character_factory
+import sys
+sys.path.insert(0, 'include')
+
+import factory.character_init
+from factory.character_factory import get_character_factory
 
 factory = get_character_factory()
 char = factory.create("your_role_id", "测试名称")

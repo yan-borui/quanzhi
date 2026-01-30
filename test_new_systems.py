@@ -15,11 +15,11 @@ import os
 # 添加include目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'include'))
 
-from DualJudgmentSystem import DualJudgmentSystem, JudgmentResult
-from ContinuousEffectSystem import ContinuousEffectSystem, ContinuousEffect, RemovalCondition
-from StateBindingSystem import StateBindingSystem
-from Knight import Knight
-from Summoner import Summoner
+from include.systems.dual_judgment import DualJudgmentSystem, JudgmentResult
+from include.systems.continuous_effect import ContinuousEffectSystem, ContinuousEffect, RemovalCondition
+from include.systems.state_binding import StateBindingSystem
+from include.characters.knight import Knight
+from include.characters.summoner import Summoner
 
 
 def test_dual_judgment_system():

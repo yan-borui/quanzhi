@@ -2,9 +2,9 @@
 # Swordsman.py
 from typing import Optional, List
 
-from Behavior import BehaviorType
-from Character import Character
-from Skill import Skill
+from core.behavior import BehaviorType
+from core.character import Character
+from core.skill import Skill
 
 
 class Swordsman(Character):
@@ -77,7 +77,7 @@ class Swordsman(Character):
             target.take_damage(6)
             target.add_imprint("剑意", 1)
 
-        skill.trigger_cooldown()
+        skill.set_cooldown(skill.get_base_cooldown())
         return True
 
     def _effortless_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:

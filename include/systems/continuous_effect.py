@@ -12,7 +12,7 @@ ContinuousEffectSystem - 持续效果系统
 - 支持效果叠加和独立计时
 """
 
-from typing import Callable, Optional, Any, List
+from typing import Callable, Optional, Any, List, Dict
 from enum import Enum
 
 
@@ -130,7 +130,7 @@ class ContinuousEffectSystem:
     def __init__(self):
         """初始化持续效果系统"""
         # 存储每个角色的持续效果列表: character_id -> List[ContinuousEffect]
-        self.character_effects: dict[int, List[ContinuousEffect]] = {}
+        self.character_effects: Dict[int, List[ContinuousEffect]] = {}
     
     def add_effect(self, target: Any, effect: ContinuousEffect):
         """

@@ -2,9 +2,9 @@
 # Summoner.py
 from typing import Optional
 
-from Behavior import BehaviorType
-from Character import Character
-from Skill import Skill
+from core.behavior import BehaviorType
+from core.character import Character
+from core.skill import Skill
 
 
 class Summoner(Character):

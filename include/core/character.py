@@ -3,7 +3,7 @@
 Character 抽象基类
 - 提取 Player 和 Summon 的公共属性与方法
 - 管理：生命值、控制、潜行、技能、印记（imprints）和累积效果（accumulations）
-- 提供边界检��：map 访问、hp 范围、印记/累积减值不越界、技能检查等
+- 提供边界检查：map 访问、hp 范围、印记/累积减值不越界、技能检查等
 
 设计说明：
 - 只包含与角色状态与技能管理相关的通用逻辑，具体的 use_skill() 为抽象方法。
@@ -21,8 +21,8 @@ Character 抽象基类
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
-from Skill import Skill
-from Behavior import BehaviorType
+from core.skill import Skill
+from core.behavior import BehaviorType
 
 
 class Character(ABC):

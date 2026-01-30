@@ -9,7 +9,7 @@ Summon 派生类
 - 支持带目标的技能施放
 """
 
-from Character import Character
+from core.character import Character
 
 
 class Summon(Character):
