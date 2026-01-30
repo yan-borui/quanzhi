@@ -12,5 +12,6 @@ from .array_master import ArrayMaster
 from .healer import Healer
 from .scholar import Scholar
 from .oil_master import OilMaster
+from .target import Target
 
-__all__ = ['Knight', 'Summoner', 'Swordsman', 'Ranger', 'ArrayMaster', 'Healer', 'Scholar', 'OilMaster']
+__all__ = ['Knight', 'Summoner', 'Swordsman', 'Ranger', 'ArrayMaster', 'Healer', 'Scholar', 'OilMaster', 'Target']
