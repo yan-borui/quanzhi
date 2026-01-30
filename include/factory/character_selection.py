@@ -125,7 +125,7 @@ def select_characters(min_players: int = 2, max_players: int = 6, max_retries: i
             if character:
                 selected_characters.append(character)
                 successfully_created += 1
-                print(f"✓ 已添加: {character.name}")
+                print(f"已添加: {character.name}")
             else:
                 print(f"错误: 无法创建角色 {selected_role_id}")
                 
