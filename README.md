@@ -39,20 +39,35 @@ python3 main.py
 
 ```
 quanzhi/
-├── include/
-│   ├── Character.py           # 角色基类
-│   ├── Skill.py               # 技能系统
-│   ├── CharacterFactory.py    # 角色工厂和注册表
-│   ├── character_init.py      # 角色注册
-│   ├── character_selection.py # 角色选择UI
-│   ├── Knight.py              # 骑士角色
-│   ├── Summoner.py            # 召唤师角色
-│   ├── Swordsman.py           # 剑客角色
-│   ├── Mage.py                # 法师角色（示例）
-│   ├── main.py                # 游戏主程序
-│   └── ...
-├── CHARACTER_GUIDE.md         # 角色开发指南
-└── README.md                  # 本文件
+├── include/                    # 游戏引擎核心包
+│   ├── __init__.py
+│   ├── core/                   # 核心基类模块
+│   │   ├── __init__.py
+│   │   ├── character.py        # 角色基类
+│   │   ├── skill.py            # 技能系统
+│   │   ├── behavior.py         # 行为类型定义
+│   │   ├── player.py           # 玩家类
+│   │   └── summon.py           # 召唤物类
+│   ├── characters/             # 角色实现模块
+│   │   ├── __init__.py
+│   │   ├── knight.py           # 骑士角色
+│   │   ├── summoner.py         # 召唤师角色
+│   │   └── swordsman.py        # 剑客角色
+│   ├── systems/                # 游戏系统模块
+│   │   ├── __init__.py
+│   │   ├── dual_judgment.py    # 双人判定系统
+│   │   ├── continuous_effect.py # 持续效果系统
+│   │   └── state_binding.py    # 状态绑定系统
+│   ├── factory/                # 工厂和初始化模块
+│   │   ├── __init__.py
+│   │   ├── character_factory.py # 角色工厂和注册表
+│   │   ├── character_init.py   # 角色注册
+│   │   └── character_selection.py # 角色选择UI
+│   └── main.py                 # 游戏主程序
+├── clientgui.py                # 客户端GUI
+├── test_new_systems.py         # 系统测试脚本
+├── CHARACTER_GUIDE.md          # 角色开发指南
+└── README.md                   # 本文件
 ```
 
 ## 系统架构
@@ -62,7 +77,7 @@ quanzhi/
 游戏使用工厂模式管理角色创建：
 
 ```python
-from CharacterFactory import get_character_factory
+from factory.character_factory import get_character_factory
 
 factory = get_character_factory()
 knight = factory.create("knight", "我的骑士")
@@ -92,8 +107,11 @@ game.start()
 ### 运行测试
 
 ```bash
-cd include
-python3 -m py_compile *.py  # 语法检查
+# 运行新系统测试
+python3 test_new_systems.py
+
+# 语法检查
+python3 -m py_compile include/**/*.py include/*.py
 ```
 
 ### 代码规范
