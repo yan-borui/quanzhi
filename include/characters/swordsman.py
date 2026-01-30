@@ -2,9 +2,9 @@
 # Swordsman.py
 from typing import Optional, List
 
-from Behavior import BehaviorType
-from Character import Character
-from Skill import Skill
+from include.core.behavior import BehaviorType
+from include.core.character import Character
+from include.core.skill import Skill
 
 
 class Swordsman(Character):

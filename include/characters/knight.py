@@ -3,9 +3,9 @@
 import copy
 from typing import Optional, Dict
 
-from Behavior import BehaviorType
-from Character import Character
-from Skill import Skill
+from include.core.behavior import BehaviorType
+from include.core.character import Character
+from include.core.skill import Skill
 
 
 class Knight(Character):

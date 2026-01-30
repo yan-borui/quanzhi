@@ -21,8 +21,8 @@ Character 抽象基类
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
-from Skill import Skill
-from Behavior import BehaviorType
+from include.core.skill import Skill
+from include.core.behavior import BehaviorType
 
 
 class Character(ABC):

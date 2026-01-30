@@ -3,10 +3,10 @@
 角色初始化模块 - 注册所有可用角色到工厂系统
 """
 
-from CharacterFactory import register_character
-from Knight import Knight, KNIGHT_STATS_DATA
-from Summoner import Summoner, SUMMONER_STATS_DATA
-from Swordsman import Swordsman, SWORDSMAN_STATS_DATA
+from include.factory.character_factory import register_character
+from include.characters.knight import Knight, KNIGHT_STATS_DATA
+from include.characters.summoner import Summoner, SUMMONER_STATS_DATA
+from include.characters.swordsman import Swordsman, SWORDSMAN_STATS_DATA
 
 
 def initialize_characters():

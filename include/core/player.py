@@ -9,7 +9,7 @@ Player 派生类
 - 使用更安全的技能访问方式
 """
 
-from Character import Character
+from include.core.character import Character
 
 
 class Player(Character):

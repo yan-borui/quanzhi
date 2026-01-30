@@ -3,17 +3,17 @@
 import random
 import time
 from typing import List
-from Character import Character
-from Knight import Knight
-from Summoner import Summoner
-from Swordsman import Swordsman
+from include.core.character import Character
+from include.characters.knight import Knight
+from include.characters.summoner import Summoner
+from include.characters.swordsman import Swordsman
 # 导入角色初始化以注册所有角色
-import character_init
-from character_selection import select_characters, quick_select_default_characters
+import include.factory.character_init
+from include.factory.character_selection import select_characters, quick_select_default_characters
 # 导入新系统
-from DualJudgmentSystem import DualJudgmentSystem, JudgmentResult
-from ContinuousEffectSystem import ContinuousEffectSystem, ContinuousEffect, RemovalCondition
-from StateBindingSystem import StateBindingSystem
+from include.systems.dual_judgment import DualJudgmentSystem, JudgmentResult
+from include.systems.continuous_effect import ContinuousEffectSystem, ContinuousEffect, RemovalCondition
+from include.systems.state_binding import StateBindingSystem
 
 
 class Game:
