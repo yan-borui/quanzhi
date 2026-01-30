@@ -12,7 +12,7 @@ StateBindingSystem - 状态绑定系统
 - 切换目标时自动解除旧状态
 """
 
-from typing import Optional, Any, Callable, Dict
+from typing import Optional, Any, Callable, Dict, List, Tuple
 
 
 class StateBinding:
@@ -75,11 +75,11 @@ class StateBindingSystem:
         """初始化状态绑定系统"""
         # 存储绑定关系: (source_id, skill_name) -> StateBinding
         # 一个技能在同一时间只能绑定一个目标
-        self.bindings: Dict[tuple[int, str], StateBinding] = {}
+        self.bindings: Dict[Tuple[int, str], StateBinding] = {}
         
         # 反向索引: target_id -> List[(source_id, skill_name)]
         # 用于快速查找目标身上的所有绑定
-        self.target_bindings: Dict[int, list[tuple[int, str]]] = {}
+        self.target_bindings: Dict[int, List[Tuple[int, str]]] = {}
     
     def bind_state(self,
                    skill_name: str,
@@ -286,7 +286,7 @@ class StateBindingSystem:
         
         return self.bindings.get(key)
     
-    def get_target_bindings(self, target: Any) -> list[tuple[Any, str]]:
+    def get_target_bindings(self, target: Any) -> List[Tuple[Any, str]]:
         """
         获取目标身上的所有绑定
         

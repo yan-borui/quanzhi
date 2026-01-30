@@ -77,7 +77,7 @@ class Swordsman(Character):
             target.take_damage(6)
             target.add_imprint("剑意", 1)
 
-        skill.trigger_cooldown()
+        skill.set_cooldown(skill.get_base_cooldown())
         return True
 
     def _effortless_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:

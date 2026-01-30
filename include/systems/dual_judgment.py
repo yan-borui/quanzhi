@@ -13,7 +13,7 @@ DualJudgmentSystem - 双人石头剪刀布判定系统
 """
 
 import random
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, Dict
 from enum import Enum
 
 
@@ -33,7 +33,7 @@ class DualJudgmentSystem:
         # 存储技能特殊规则: skill_name -> rule_function
         # rule_function(initiator, target) -> Optional[JudgmentResult]
         # 返回None表示使用正常判定，返回结果表示强制结果
-        self.skill_rules: dict[str, Callable[[Any, Any], Optional[JudgmentResult]]] = {}
+        self.skill_rules: Dict[str, Callable[[Any, Any], Optional[JudgmentResult]]] = {}
         
     def register_skill_rule(self, skill_name: str, 
                            rule_func: Callable[[Any, Any], Optional[JudgmentResult]]):
