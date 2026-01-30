@@ -5,7 +5,7 @@ CharacterFactory - 角色工厂系统
 """
 
 from typing import Dict, List, Type, Optional, Callable
-from include.core.character import Character
+from core.character import Character
 
 
 class CharacterRegistry:

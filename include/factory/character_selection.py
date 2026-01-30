@@ -5,8 +5,8 @@
 """
 
 from typing import List, Dict
-from include.factory.character_factory import get_character_factory, get_character_registry
-from include.core.character import Character
+from factory.character_factory import get_character_factory, get_character_registry
+from core.character import Character
 
 
 def display_available_characters():
