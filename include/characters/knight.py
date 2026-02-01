@@ -136,36 +136,12 @@ class Knight(Character):
 
     def on_turn_start(self):
         """每回合开始时调用，记录当前状态，并管理盾使用窗口"""
-        # 管理“死亡后一回合”窗口过期
-        if (
-            self.death_shield_window_active
-            and self.death_shield_window_round is not None
-            and self.current_round > self.death_shield_window_round
-        ):
-            self.expire_death_shield_window()
-
-        # 检查控制状态转变（无控 -> 有控）
-        prev_control = bool(self.state_history[-1]["control"]) if self.state_history else False
-        current_control = bool(self.control)
-
-        if (not prev_control) and current_control:
-            # 首次被控的回合，开启“可用盾”窗口
-            self.control_shield_window_open = True
-            self.control_shield_window_round = self.current_round
-        elif (
-            self.control_shield_window_open
-            and self.control_shield_window_round is not None
-            and self.current_round > self.control_shield_window_round
-        ):
-            # 超出“被控首回合”，关闭窗口
-            self.control_shield_window_open = False
-            self.control_shield_window_round = None
-
         current_state = self._capture_state()
         self.state_history.append(current_state)
         if len(self.state_history) > self.max_history_size:
             self.state_history.pop(0)
         print(f"{self.name} 记录状态，历史状态数: {len(self.state_history)}")
+        super().on_turn_start()
 
     def _capture_state(self) -> Dict:
         """捕获当前状态（不包括block_id）"""

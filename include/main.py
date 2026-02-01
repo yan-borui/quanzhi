@@ -346,7 +346,7 @@ class Game:
     def get_available_actions(self, character):
         actions = []
         harmless = {"护盾", "风阵", "燃烧瓶", "火阵"}
-        harmful_controls = [c for c in character.control if c not in harmless]
+        harmful_controls = [c for c in character.control.keys() if c not in harmless]
         if character.is_controlled() and harmful_controls:
             if isinstance(character, Knight) and character.can_use_shield():
                 actions.append("技能:盾")
