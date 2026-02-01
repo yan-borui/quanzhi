@@ -187,28 +187,19 @@ class Knight(Character):
         print(f"{self.name} 状态已回退: HP={self.current_hp}, 控制={self.control}")
 
     def can_use_shield(self) -> bool:
-        """检查是否可以使用盾技能"""
+        """检查是否可以使用盾技能
+        规则：在第 x 回合，若第 x-2 回合骑士存活且未被控制，则可用"""
         if self.shield_charges <= 0:
             return False
-        if len(self.state_history) < 2:
+        if len(self.state_history) < 3:
             return False
-
-        # 死亡后的特殊窗口：仅死亡后的首回合可用
         if not self.is_alive():
-            return (
-                self.death_shield_window_active
-                and self.death_shield_window_round is not None
-                and self.current_round == self.death_shield_window_round
-            )
+            return False
 
-        # 存活时：只能在“从无控到有控”的首回合使用，且当前必须有控制
-        if not self.control:
-            return False
-        if not self.control_shield_window_open:
-            return False
-        if self.control_shield_window_round is None:
-            return False
-        return self.current_round == self.control_shield_window_round
+        prev_two_turn_state = self.state_history[-3]
+        was_alive = prev_two_turn_state.get("current_hp", 0) > 0
+        was_free = not prev_two_turn_state.get("control")
+        return was_alive and was_free
 
     def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
         if new_behavior == BehaviorType.MOVE_CLOSE:

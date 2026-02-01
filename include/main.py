@@ -345,10 +345,12 @@ class Game:
 
     def get_available_actions(self, character):
         actions = []
-        if character.control:
+        harmless = {"护盾", "风阵", "燃烧瓶", "火阵"}
+        harmful_controls = [c for c in character.control if c not in harmless]
+        if character.is_controlled() and harmful_controls:
             if isinstance(character, Knight) and character.can_use_shield():
                 actions.append("技能:盾")
-            for control_name in character.control.keys():
+            for control_name in harmful_controls:
                 actions.append(f"行为:解控-{control_name}")
             return actions
 
@@ -418,15 +420,6 @@ class Game:
             else:
                 actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
 
-        # 自己人类增益（允许对自身施放的治疗/护盾）
-        # 定义哪些角色可以自我施法
-        SELF_CAST_ROLES = {"healer", "knight", "swordsman", "summoner", "ranger", "array_master", "oil_master"}
-
-        # 在 Game 类的某处获取角色的 role_id
-        # 或者在 Character 类中添加一个 role_id 属性
-        if hasattr(character, 'role_id') and character.role_id in SELF_CAST_ROLES:
-            actions.append("行为:自我施法")
-
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
         return actions
@@ -488,7 +481,11 @@ class Game:
                 character.use_skill_on_target(skill_name, character)
                 return True
 
-            targets = [char for char in self.alive_characters if char != character]
+            targets = [char for char in self.alive_characters]
+
+            # 风阵：不能对近程目标使用技能（但可自施）
+            if character.has_control("风阵"):
+                targets = [t for t in targets if t == character or not character.is_nearby(t)]
 
             if skill_name == "回旋斩":
                 targets = [t for t in targets if character.is_nearby(t)]
@@ -585,16 +582,6 @@ class Game:
                 else:
                     print(f"未找到控制效果：{control_name}")
                     return False
-            elif behavior == "自我施法":
-                # 允许对自己使用带目标的技能（简单选择第一个可用的治疗/护盾技能）
-                self_targets = ["套盾", "大血包", "小血包"]
-                for name in self_targets:
-                    if character.has_skill(name) and character.get_skill(name).is_available():
-                        print(f">>> {character.name} 对自己使用 {name}")
-                        character.use_skill_on_target(name, character)
-                        return True
-                print("没有可用的自我施法技能！")
-                return False
 
         return False
 
