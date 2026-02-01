@@ -76,7 +76,9 @@ class Character(ABC):
 
     def is_controlled(self) -> bool:
         """检查角色是否被控制（有控制效果）"""
-        return len(self.control) > 0
+        # 护盾/风阵/持续伤害类印记不阻止行动
+        harmless = {"护盾", "风阵", "燃烧瓶", "火阵"}
+        return any(k not in harmless for k in self.control.keys())
 
     # 带目标的技能使用（可选实现）
     def use_skill_on_target(self, skill_name: str, target: 'Character'):
@@ -372,7 +374,15 @@ class Character(ABC):
         return self.current_hp <= 0
 
     def can_act(self) -> bool:
-        return self.is_alive() and len(self.control) == 0
+        return self.is_alive() and not self.is_controlled()
+
+    def on_turn_start(self):
+        """基础回合开始逻辑：处理通用持续效果"""
+        # 持续伤害：燃烧瓶每层3点，火阵每层2点
+        if self.has_control("燃烧瓶"):
+            self.take_damage(3 * self.get_control("燃烧瓶"))
+        if self.has_control("火阵"):
+            self.take_damage(2 * self.get_control("火阵"))
 
     # 输出状态
     def display_status(self):

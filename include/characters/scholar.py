@@ -46,8 +46,12 @@ class Scholar(Character):
     def _molotov_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(3)
-        target.add_control("燃烧瓶", 1)
+        # 以所在块为范围，所有角色（含友伤）每层持续伤害由 on_turn_start 结算
+        targets = [t for t in caster.get_nearby_characters() if t != caster or t == target]
+        if not targets:
+            return False
+        for t in targets:
+            t.add_control("燃烧瓶", 1)
         return True
 
 
