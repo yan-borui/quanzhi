@@ -88,11 +88,8 @@ class Swordsman(Character):
         return True
 
     def _whirlwind_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        if not target:
-            return False
-        target.take_damage(6)
-        target.add_imprint("剑意", 1)
-        return True
+        # 单体入口仅用于接口兼容，真实逻辑使用 use_whirlwind_on_targets
+        return False
 
     def _lightning_strike_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:

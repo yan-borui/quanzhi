@@ -114,11 +114,6 @@ class Game:
             if hasattr(char, 'on_turn_start'):
                 char.on_turn_start()
 
-        # 处理持续效果（在回合开始时触发）
-        for char in self.all_characters:
-            if char.is_alive():
-                self.continuous_effect_system.trigger_all_effects(char)
-
         self.display_battle_status()
         self.reduce_all_cooldowns()
 
@@ -423,6 +418,10 @@ class Game:
             else:
                 actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
 
+        # 自己人类增益（允许对自身施放的治疗/护盾）
+        if isinstance(character, (Healer, Knight, Swordsman, Summoner, Ranger, ArrayMaster, OilMaster)):
+            actions.append("行为:自我施法")
+
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
         return actions
@@ -491,6 +490,8 @@ class Game:
                 if not targets:
                     print(f"回旋斩需要附近的目标，但没有角色在附近！")
                     return False
+                # 范围伤害：对同一块内所有其他角色
+                return character.use_whirlwind_on_targets(targets)
             elif skill_name == "闪电劈":
                 targets = [t for t in targets if t.get_imprint("剑意") >= 3]
                 if not targets:
@@ -579,6 +580,16 @@ class Game:
                 else:
                     print(f"未找到控制效果：{control_name}")
                     return False
+            elif behavior == "自我施法":
+                # 允许对自己使用带目标的技能（简单选择第一个可用的治疗/护盾技能）
+                self_targets = ["套盾", "大血包", "小血包"]
+                for name in self_targets:
+                    if character.has_skill(name) and character.get_skill(name).is_available():
+                        print(f">>> {character.name} 对自己使用 {name}")
+                        character.use_skill_on_target(name, character)
+                        return True
+                print("没有可用的自我施法技能！")
+                return False
 
         return False
 

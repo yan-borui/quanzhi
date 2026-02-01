@@ -63,12 +63,15 @@ class ArrayMaster(Character):
     def _风阵_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
+        # 仅限制近程技能的使用权，不是全面控制
+        # 仅限制近程技能使用，不阻断行动
         return self._add_array_control(target, "风阵", "风阵")
 
     def _火阵_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        return self._add_array_control(target, "火阵", "火阵", lambda: target.take_damage(2))
+        # 改为持续伤害，由 on_turn_start 结算
+        return self._add_array_control(target, "火阵", "火阵")
 
     def _五彩法阵_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
