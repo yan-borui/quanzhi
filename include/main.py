@@ -419,7 +419,12 @@ class Game:
                 actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
 
         # 自己人类增益（允许对自身施放的治疗/护盾）
-        if isinstance(character, (Healer, Knight, Swordsman, Summoner, Ranger, ArrayMaster, OilMaster)):
+        # 定义哪些角色可以自我施法
+        SELF_CAST_ROLES = {"healer", "knight", "swordsman", "summoner", "ranger", "array_master", "oil_master"}
+
+        # 在 Game 类的某处获取角色的 role_id
+        # 或者在 Character 类中添加一个 role_id 属性
+        if hasattr(character, 'role_id') and character.role_id in SELF_CAST_ROLES:
             actions.append("行为:自我施法")
 
         actions.append("行为:到你身边")
