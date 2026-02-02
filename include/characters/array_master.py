@@ -4,6 +4,7 @@ from typing import Optional, Callable
 
 from core.character import Character
 from core.skill import Skill
+from systems.dual_judgment import DualJudgmentSystem, JudgmentResult
 
 
 class ArrayMaster(Character):
@@ -80,8 +81,12 @@ class ArrayMaster(Character):
         if not all(target.has_control(c) for c in required):
             print(f"{target.get_name()} 缺少必要的四个阵，无法发动五彩法阵")
             return False
-        target.take_damage(60)
-        return True
+        result = DualJudgmentSystem().judge(caster, target, "五彩法阵")
+        if result == JudgmentResult.INITIATOR_WIN:
+            target.take_damage(60)
+            return True
+        print(f"{caster.get_name()} 未能在判定中获胜，五彩法阵未成功发动")
+        return False
 
 
 ARRAY_MASTER_SKILLS_DATA = {
