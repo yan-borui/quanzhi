@@ -428,7 +428,7 @@ class Game:
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
 
-        # 允许在正常行动时主动清除无害类控制（例如风阵）
+        # 允许在正常行动时主动清除无害类控制（例如护盾、风阵）
         for control_name in character.control.keys():
             if control_name in harmless_controls:
                 actions.append(f"行为:解控-{control_name}")
