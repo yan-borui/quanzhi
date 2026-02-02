@@ -21,8 +21,25 @@ Character 抽象基类
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
+from threading import Lock
 from core.skill import Skill
 from core.behavior import BehaviorType
+
+
+BURNING_BLOCKS: Dict[int, int] = {}
+BURNING_BLOCKS_LOCK = Lock()
+
+
+def add_burning_block(block_id: int, stacks: int = 1):
+    if stacks <= 0:
+        return
+    with BURNING_BLOCKS_LOCK:
+        BURNING_BLOCKS[block_id] = BURNING_BLOCKS.get(block_id, 0) + stacks
+
+
+def get_burning_block_stacks(block_id: int) -> int:
+    with BURNING_BLOCKS_LOCK:
+        return BURNING_BLOCKS.get(block_id, 0)
 
 
 class Character(ABC):
@@ -379,8 +396,9 @@ class Character(ABC):
     def on_turn_start(self):
         """基础回合开始逻辑：处理通用持续效果"""
         # 持续伤害：燃烧瓶每层3点，火阵每层2点
-        if self.has_control("燃烧瓶"):
-            self.take_damage(3 * self.get_control("燃烧瓶"))
+        burning_stacks = get_burning_block_stacks(self.block_id)
+        if burning_stacks > 0:
+            self.take_damage(3 * burning_stacks)
         if self.has_control("火阵"):
             self.take_damage(2 * self.get_control("火阵"))
 
