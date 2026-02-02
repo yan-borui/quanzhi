@@ -488,7 +488,7 @@ class Game:
 
             if skill_name in ["盾", "狼", "熊"]:
                 print(f"\n>>> {character.name} 使用技能 {skill_name}")
-                character.use_skill_on_target(skill_name, character)
+                character.use_skill(skill_name)
                 return True
 
             targets = list(self.alive_characters)

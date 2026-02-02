@@ -39,7 +39,28 @@ class Knight(Character):
         self.add_or_replace_skill(shield)
 
     def use_skill(self, skill_name: str):
-        self.use_skill_on_target(skill_name, self)
+        skill = self.get_skill(skill_name)
+        if not skill:
+            print(f"{self.name} 没有技能: {skill_name}")
+            return
+        if skill_name == "盾":
+            if self.shield_charges <= 0:
+                print(f"盾技能使用次数已用完！")
+                return
+            if not self.can_use_shield():
+                print(f"{self.name} 当前不满足使用盾的条件！")
+                return
+            success = skill.execute_with_target(self, self)
+            if success:
+                print(f"{self.name} 使用了 {skill_name}")
+            return
+
+        if not skill.is_available():
+            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            return
+        success = skill.execute_with_target(self, self)
+        if success:
+            print(f"{self.name} 使用了 {skill_name}")
 
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
@@ -48,19 +69,8 @@ class Knight(Character):
             return
 
         if skill_name == "盾":
-            if self.shield_charges <= 0:
-                print(f"盾技能使用次数已用完！")
-                return
-            if len(self.state_history) < 2:
-                print(f"没有足够的历史状态使用盾技能！")
-                return
-            if not self.can_use_shield():
-                print(f"{self.name} 当前不满足使用盾的条件！")
-                return
-
-            success = skill.execute_with_target(self, target)
-            if success:
-                print(f"{self.name} 使用了 {skill_name}")
+            # 统一入口到无目标版，避免要求选择目标
+            self.use_skill(skill_name)
             return
 
         if not skill.is_available():
@@ -190,25 +200,17 @@ class Knight(Character):
         """检查是否可以使用盾技能"""
         if self.shield_charges <= 0:
             return False
-        if len(self.state_history) < 2:
+
+        # 需要至少保留3个历史状态，且回合数达到3才能检查 x-2 回合
+        if self.current_round < 3 or len(self.state_history) < 3:
             return False
 
-        # 死亡后的特殊窗口：仅死亡后的首回合可用
-        if not self.is_alive():
-            return (
-                self.death_shield_window_active
-                and self.death_shield_window_round is not None
-                and self.current_round == self.death_shield_window_round
-            )
+        # 检查第 x-2 回合（state_history 中最早的状态）是否存活且无控制
+        past_state = self.state_history[-3]
+        was_alive = past_state.get("current_hp", 0) > 0
+        was_free = not bool(past_state.get("control"))
 
-        # 存活时：只能在“从无控到有控”的首回合使用，且当前必须有控制
-        if not self.control:
-            return False
-        if not self.control_shield_window_open:
-            return False
-        if self.control_shield_window_round is None:
-            return False
-        return self.current_round == self.control_shield_window_round
+        return was_alive and was_free
 
     def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
         if new_behavior == BehaviorType.MOVE_CLOSE:
