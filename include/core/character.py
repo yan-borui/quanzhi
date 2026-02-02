@@ -93,7 +93,7 @@ class Character(ABC):
 
     def is_controlled(self) -> bool:
         """检查角色是否被控制（有控制效果）"""
-        # 护盾/风阵/持续伤害类印记不阻止行动
+        # 护盾/风阵/燃烧瓶/火阵不阻止行动
         harmless = {"护盾", "风阵", "燃烧瓶", "火阵"}
         return any(k not in harmless for k in self.control.keys())
 

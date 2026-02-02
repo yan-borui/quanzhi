@@ -16,6 +16,9 @@ from systems.continuous_effect import ContinuousEffectSystem, ContinuousEffect, 
 from systems.state_binding import StateBindingSystem
 
 
+HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵"}
+
+
 class Game:
     def __init__(self, characters: List[Character] = None):
         """
@@ -345,7 +348,7 @@ class Game:
 
     def get_available_actions(self, character):
         actions = []
-        harmless_controls = {"护盾", "风阵", "燃烧瓶", "火阵"}
+        harmless_controls = HARMLESS_CONTROLS
         active_controls = [k for k in character.control.keys() if k not in harmless_controls]
 
         if active_controls:
@@ -430,7 +433,7 @@ class Game:
 
         # 允许在正常行动时主动清除无害类控制（例如护盾、风阵、燃烧瓶、火阵）
         for control_name in character.control.keys():
-            if control_name in harmless_controls:
+            if control_name in HARMLESS_CONTROLS:
                 actions.append(f"行为:解控-{control_name}")
         return actions
 
