@@ -26,6 +26,8 @@ from core.skill import Skill
 from core.behavior import BehaviorType
 
 
+HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵"}
+
 BURNING_BLOCKS: Dict[int, int] = {}
 BURNING_BLOCKS_LOCK = Lock()
 
@@ -94,8 +96,7 @@ class Character(ABC):
     def is_controlled(self) -> bool:
         """检查角色是否被控制（有控制效果）"""
         # 护盾/风阵/燃烧瓶/火阵不阻止行动
-        harmless = {"护盾", "风阵", "燃烧瓶", "火阵"}
-        return any(k not in harmless for k in self.control.keys())
+        return any(k not in HARMLESS_CONTROLS for k in self.control.keys())
 
     # 带目标的技能使用（可选实现）
     def use_skill_on_target(self, skill_name: str, target: 'Character'):
