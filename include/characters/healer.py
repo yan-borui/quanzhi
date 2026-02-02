@@ -60,6 +60,7 @@ class Healer(Character):
     def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
+        # 护盾视为增益，不应限制行动
         target.add_control("护盾", 1)
         return True
 
