@@ -345,7 +345,7 @@ class Game:
 
     def get_available_actions(self, character):
         actions = []
-        harmless_controls = {"护盾", "风阵", "燃烧瓶", "火阵"}
+        harmless_controls = {"护盾", "风阵"}
         active_controls = [k for k in character.control.keys() if k not in harmless_controls]
 
         if active_controls:
