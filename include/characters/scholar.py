@@ -2,7 +2,7 @@
 # scholar.py
 from typing import Optional
 
-from core.character import Character
+from core.character import Character, add_burning_block
 from core.skill import Skill
 
 
@@ -46,12 +46,7 @@ class Scholar(Character):
     def _molotov_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        # 以所在块为范围，所有角色（含友伤）每层持续伤害由 on_turn_start 结算
-        targets = [t for t in caster.get_nearby_characters() if t != caster or t == target]
-        if not targets:
-            return False
-        for t in targets:
-            t.add_control("燃烧瓶", 1)
+        add_burning_block(target.block_id, 1)
         return True
 
 

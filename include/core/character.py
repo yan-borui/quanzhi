@@ -25,6 +25,19 @@ from core.skill import Skill
 from core.behavior import BehaviorType
 
 
+BURNING_BLOCKS: Dict[int, int] = {}
+
+
+def add_burning_block(block_id: int, stacks: int = 1):
+    if stacks <= 0:
+        return
+    BURNING_BLOCKS[block_id] = BURNING_BLOCKS.get(block_id, 0) + stacks
+
+
+def get_burning_block_stacks(block_id: int) -> int:
+    return BURNING_BLOCKS.get(block_id, 0)
+
+
 class Character(ABC):
     def __init__(self, name: str = "", max_hp: int = 0, control: Dict[str, int] = None, stealth: int = 0):
         self.name = name
@@ -379,6 +392,9 @@ class Character(ABC):
     def on_turn_start(self):
         """基础回合开始逻辑：处理通用持续效果"""
         # 持续伤害：燃烧瓶每层3点，火阵每层2点
+        burning_stacks = get_burning_block_stacks(self.block_id)
+        if burning_stacks > 0:
+            self.take_damage(3 * burning_stacks)
         if self.has_control("燃烧瓶"):
             self.take_damage(3 * self.get_control("燃烧瓶"))
         if self.has_control("火阵"):
