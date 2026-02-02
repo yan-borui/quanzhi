@@ -88,7 +88,7 @@ class ArrayMaster(Character):
         if result == JudgmentResult.INITIATOR_WIN:
             target.take_damage(60)
             return True
-        print(f"{caster.get_name()} 未能在判定中获胜，五彩法阵未成功发动")
+        print(f"{caster.get_name()} 在五彩法阵判定中未获胜（结果: {result.value}），技能未成功发动")
         return False
 
 
