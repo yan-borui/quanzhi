@@ -345,7 +345,7 @@ class Game:
 
     def get_available_actions(self, character):
         actions = []
-        harmless_controls = {"护盾", "风阵"}
+        harmless_controls = {"护盾", "风阵", "燃烧瓶", "火阵"}
         active_controls = [k for k in character.control.keys() if k not in harmless_controls]
 
         if active_controls:
@@ -428,7 +428,7 @@ class Game:
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
 
-        # 允许在正常行动时主动清除无害类控制（例如护盾、风阵）
+        # 允许在正常行动时主动清除无害类控制（例如护盾、风阵、燃烧瓶、火阵）
         for control_name in character.control.keys():
             if control_name in harmless_controls:
                 actions.append(f"行为:解控-{control_name}")

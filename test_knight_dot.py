@@ -22,7 +22,8 @@ class KnightDotTest(unittest.TestCase):
 
         # 初始60HP - 燃烧瓶每层3点*1 - 火阵每层2点*1 = 55
         self.assertEqual(knight.current_hp, 55)
-        self.assertTrue(knight.is_controlled())
+        # 燃烧瓶/火阵不应算作控制
+        self.assertFalse(knight.is_controlled())
         self.assertEqual(BURNING_BLOCKS.get(knight.block_id), 1)
 
 
