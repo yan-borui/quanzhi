@@ -146,6 +146,8 @@ class Knight(Character):
 
     def on_turn_start(self):
         """每回合开始时调用，记录当前状态，并管理盾使用窗口"""
+        super().on_turn_start()  # 先结算燃烧瓶/火阵等通用持续效果
+
         # 管理“死亡后一回合”窗口过期
         if (
             self.death_shield_window_active
