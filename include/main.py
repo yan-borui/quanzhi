@@ -345,10 +345,13 @@ class Game:
 
     def get_available_actions(self, character):
         actions = []
-        if character.control:
+        harmless_controls = {"护盾", "风阵", "燃烧瓶", "火阵"}
+        active_controls = [k for k in character.control.keys() if k not in harmless_controls]
+
+        if active_controls:
             if isinstance(character, Knight) and character.can_use_shield():
                 actions.append("技能:盾")
-            for control_name in character.control.keys():
+            for control_name in active_controls:
                 actions.append(f"行为:解控-{control_name}")
             return actions
 
@@ -429,6 +432,11 @@ class Game:
 
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
+
+        # 允许在正常行动时主动清除无害类控制（例如风阵、火阵）
+        for control_name in character.control.keys():
+            if control_name in harmless_controls:
+                actions.append(f"行为:解控-{control_name}")
         return actions
 
     def display_action_options(self, character):
@@ -489,6 +497,14 @@ class Game:
                 return True
 
             targets = [char for char in self.alive_characters if char != character]
+
+            # 风阵：仅禁止对近程目标使用技能（选择目标阶段过滤近目标）
+            if character.has_control("风阵"):
+                filtered_targets = [t for t in targets if not character.is_nearby(t)]
+                if not filtered_targets:
+                    print(f"{character.name} 受到风阵影响，无法对近程目标使用技能，且没有远程目标。")
+                    return False
+                targets = filtered_targets
 
             if skill_name == "回旋斩":
                 targets = [t for t in targets if character.is_nearby(t)]
