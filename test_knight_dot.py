@@ -20,6 +20,7 @@ class KnightDotTest(unittest.TestCase):
         knight.start_new_turn_log()
         knight.on_turn_start()
 
+        # 初始60HP - 燃烧瓶3 - 火阵2 = 55
         self.assertEqual(knight.current_hp, 55)
         self.assertTrue(knight.is_controlled())
 
