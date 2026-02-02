@@ -6,6 +6,9 @@ from core.character import Character
 from core.skill import Skill
 from systems.dual_judgment import DualJudgmentSystem, JudgmentResult
 
+# 复用单例判定系统，避免频繁创建
+_DUAL_JUDGMENT_SYSTEM = DualJudgmentSystem()
+
 
 class ArrayMaster(Character):
     def __init__(self, name: str = "阵鬼"):
@@ -81,7 +84,7 @@ class ArrayMaster(Character):
         if not all(target.has_control(c) for c in required):
             print(f"{target.get_name()} 缺少必要的四个阵，无法发动五彩法阵")
             return False
-        result = DualJudgmentSystem().judge(caster, target, "五彩法阵")
+        result = _DUAL_JUDGMENT_SYSTEM.judge(caster, target, "五彩法阵")
         if result == JudgmentResult.INITIATOR_WIN:
             target.take_damage(60)
             return True
