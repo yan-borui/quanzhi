@@ -201,12 +201,12 @@ class Knight(Character):
         if self.shield_charges <= 0:
             return False
 
-        # 需要至少保留3个历史状态，且回合数达到2才能检查 x-2 回合
-        if self.current_round < 2 or len(self.state_history) < 3:
+        # 需要至少保留2个历史状态，且回合数达到2才能检查 x-1 回合
+        if self.current_round < 2 or len(self.state_history) < 2:
             return False
 
-        # 检查第 x-2 回合（state_history 中最早的状态）是否存活且无控制
-        past_state = self.state_history[-3]
+        # 检查第 x-1 回合（state_history 中上一回合的状态）是否存活且无控制
+        past_state = self.state_history[-2]
         was_alive = past_state.get("current_hp", 0) > 0
         was_free = not bool(past_state.get("control"))
 
