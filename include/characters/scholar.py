@@ -3,6 +3,8 @@
 from typing import Optional
 
 from core.character import Character, add_burning_block
+
+MOLOTOV_STACK = 1
 from core.skill import Skill
 
 
@@ -46,7 +48,6 @@ class Scholar(Character):
     def _molotov_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        MOLOTOV_STACK = 1
         add_burning_block(target.block_id, MOLOTOV_STACK)
         return True
 
