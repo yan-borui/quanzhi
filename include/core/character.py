@@ -21,21 +21,25 @@ Character 抽象基类
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
+from threading import Lock
 from core.skill import Skill
 from core.behavior import BehaviorType
 
 
 BURNING_BLOCKS: Dict[int, int] = {}
+BURNING_BLOCKS_LOCK = Lock()
 
 
 def add_burning_block(block_id: int, stacks: int = 1):
     if stacks <= 0:
         return
-    BURNING_BLOCKS[block_id] = BURNING_BLOCKS.get(block_id, 0) + stacks
+    with BURNING_BLOCKS_LOCK:
+        BURNING_BLOCKS[block_id] = BURNING_BLOCKS.get(block_id, 0) + stacks
 
 
 def get_burning_block_stacks(block_id: int) -> int:
-    return BURNING_BLOCKS.get(block_id, 0)
+    with BURNING_BLOCKS_LOCK:
+        return BURNING_BLOCKS.get(block_id, 0)
 
 
 class Character(ABC):
@@ -395,8 +399,6 @@ class Character(ABC):
         burning_stacks = get_burning_block_stacks(self.block_id)
         if burning_stacks > 0:
             self.take_damage(3 * burning_stacks)
-        if self.has_control("燃烧瓶"):
-            self.take_damage(3 * self.get_control("燃烧瓶"))
         if self.has_control("火阵"):
             self.take_damage(2 * self.get_control("火阵"))
 

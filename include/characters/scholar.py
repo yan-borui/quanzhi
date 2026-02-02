@@ -46,7 +46,8 @@ class Scholar(Character):
     def _molotov_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        add_burning_block(target.block_id, 1)
+        MOLOTOV_STACK = 1
+        add_burning_block(target.block_id, MOLOTOV_STACK)
         return True
 
 
