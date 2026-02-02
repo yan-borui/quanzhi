@@ -353,6 +353,10 @@ class Game:
                 actions.append("技能:盾")
             for control_name in active_controls:
                 actions.append(f"行为:解控-{control_name}")
+            # 仍允许无害控制被主动解除
+            harmless_to_clear = harmless_controls.intersection(character.control.keys()) - set(active_controls)
+            for control_name in harmless_to_clear:
+                actions.append(f"行为:解控-{control_name}")
             return actions
 
         if not character.is_alive():
