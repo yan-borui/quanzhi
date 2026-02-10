@@ -11,6 +11,7 @@ class OilMaster(Character):
         super().__init__(name, max_hp=60, control={}, stealth=0)
         self._initialize_skills()
         self.oil_pots = 1  # 每回合只能倒一锅
+        self.oil_pot_count = 0  # 油锅计数
 
     def _initialize_skills(self):
         pour = Skill("铜孔倒油", cooldown=1)
@@ -46,11 +47,27 @@ class OilMaster(Character):
             print("本回合已倒过油，无法再次使用倒你脸上")
             return
 
-        success = skill.execute_with_target(self, target)
-        if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
-            if skill_name == "倒你脸上":
-                self.oil_pots -= 1
+        # 一锅油改为瞬发自身技能，忽略target参数
+        if skill_name == "一锅油":
+            success = skill.execute_with_target(self, self)
+            if success:
+                print(f"{self.name} 使用了 一锅油")
+        else:
+            success = skill.execute_with_target(self, target)
+            if success:
+                print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+                if skill_name == "倒你脸上":
+                    self.oil_pots -= 1
+
+    def drink_oil(self, drinker: Character) -> bool:
+        """喝油交互：任何角色均可执行，HP+3，消耗1个油锅计数"""
+        if self.oil_pot_count <= 0:
+            print(f"{self.name} 没有可用的油锅")
+            return False
+        self.oil_pot_count -= 1
+        drinker.heal(3)
+        print(f"{drinker.get_name()} 喝了 {self.name} 的油，HP+3，剩余油锅: {self.oil_pot_count}")
+        return True
 
     def _pour_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
@@ -66,9 +83,9 @@ class OilMaster(Character):
         return True
 
     def _pot_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        if not target:
-            return False
-        target.add_accumulation("油锅", 1)
+        # 瞬发技能：直接增加自身油锅计数+1
+        self.oil_pot_count += 1
+        print(f"{self.name} 的油锅计数 +1，当前油锅: {self.oil_pot_count}")
         return True
 
     def _face_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -84,7 +101,7 @@ class OilMaster(Character):
 OIL_MASTER_SKILLS_DATA = {
     "铜孔倒油": {"name": "铜孔倒油", "cooldown": 1, "damage": 6, "effect": "无", "common": True},
     "教训你": {"name": "教训你", "cooldown": 2, "damage": 6, "effect": "控制，可叠"},
-    "一锅油": {"name": "一锅油", "cooldown": 3, "damage": 0, "effect": "可被任何人喝，喝了HP+3，每回合一锅"},
+    "一锅油": {"name": "一锅油", "cooldown": 3, "damage": 0, "effect": "瞬发，自身油锅计数+1；油锅可被任何角色喝（HP+3）"},
     "倒你脸上": {"name": "倒你脸上", "cooldown": 0, "damage": 15, "effect": "每次只能倒一锅"}
 }
 

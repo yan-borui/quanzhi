@@ -51,6 +51,9 @@ class Ranger(Character):
             print(f"{target.get_name()} 已被纱袋控制，无法叠加")
             return False
         target.add_control("纱袋", 1)
+        # 强制位移：将目标移动到游侠所在的地块
+        target.set_block_id(self.block_id)
+        print(f"{target.get_name()} 被强制位移到 {self.name} 所在的地块")
         return True
 
 
@@ -67,7 +70,7 @@ RANGER_SKILLS_DATA = {
         "name": "纱袋",
         "cooldown": 1,
         "damage": 0,
-        "effect": "控制（不可叠）",
+        "effect": "控制（不可叠）+ 强制位移至游侠所在地块",
         "range": "任意",
         "common": False
     }
