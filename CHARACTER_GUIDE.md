@@ -254,6 +254,74 @@ print(f"技能数量: {len(char.skills)}")
 3. 验证技能效果函数返回值为 bool
 4. 检查是否调用了 `super().__init__()`
 
+## 插件接口规范
+
+插件系统使用 `CharacterPlugin` 抽象基类（定义在 `include/core/plugin_interface.py`）规范插件结构。
+
+### 插件模块要求
+
+每个插件模块必须满足以下约定：
+
+| 项目 | 要求 | 说明 |
+|------|------|------|
+| `ROLE_ID` | `str`（推荐） | 角色唯一标识符，未定义时使用文件名 |
+| `STATS_DATA` | `dict`（推荐） | 角色元数据，应包含 `name`(str) 和 `max_hp`(int>0) |
+| Character 子类 | **必须** | 至少一个继承 `core.character.Character` 的类 |
+| `on_register()` | 可选 | 插件注册时调用的钩子函数 |
+| `on_unregister()` | 可选 | 插件注销时调用的钩子函数 |
+
+### STATS_DATA 模式
+
+`STATS_DATA` 字典校验规则（定义在 `include/core/plugin_schema.py`）：
+
+**必须字段：**
+- `name` (str): 角色名称
+- `max_hp` (int): 最大生命值，必须大于 0
+
+**可选字段：**
+- `description` (str): 角色描述
+- `role_type` (str): 角色类型
+- `control` (dict): 控制效果
+- `stealth` (int): 潜行值
+
+### 插件加载与卸载
+
+```python
+from factory.plugin_loader import get_plugin_loader
+
+loader = get_plugin_loader()
+
+# 加载插件
+loader.load_plugin("/path/to/plugin.py")
+
+# 卸载插件
+loader.unload_plugin("/path/to/plugin.py")
+
+# 重载插件
+loader.reload_plugin("/path/to/plugin.py")
+```
+
+## 通过 pip 包分发插件（entry_points）
+
+第三方可以通过 Python 包的 `entry_points` 发布插件，无需将文件放入 `plugins/` 目录。
+
+### 在 setup.cfg 中声明
+
+```ini
+[options.entry_points]
+quanzhi.plugins =
+    my_character = my_package.my_module
+```
+
+### 在 pyproject.toml 中声明
+
+```toml
+[project.entry-points."quanzhi.plugins"]
+my_character = "my_package.my_module"
+```
+
+插件加载器会在 `discover_plugins()` 时自动扫描 `quanzhi.plugins` 组中的 entry_points。
+
 ## 进一步扩展
 
 未来可以考虑:
