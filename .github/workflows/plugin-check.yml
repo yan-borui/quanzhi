@@ -1,0 +1,45 @@
+name: Plugin Check
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Compile check (py_compile)
+        run: |
+          python -m py_compile include/core/plugin_interface.py
+          python -m py_compile include/core/plugin_schema.py
+          python -m py_compile include/factory/plugin_loader.py
+          find include -name '*.py' -exec python -m py_compile {} +
+          if [ -d plugins ]; then
+            find plugins -name '*.py' -exec python -m py_compile {} +
+          fi
+
+      - name: Run tests
+        run: |
+          cd tests && python -m pytest -v
