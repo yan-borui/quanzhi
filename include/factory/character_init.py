@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 角色初始化模块 - 注册所有可用角色到工厂系统
+支持内置角色注册和插件化角色加载
 """
+
+import os
 
 from factory.character_factory import register_character
 from characters.knight import Knight, KNIGHT_STATS_DATA
@@ -16,7 +19,7 @@ from characters.target import Target, TARGET_STATS_DATA
 
 
 def initialize_characters():
-    """初始化并注册所有角色"""
+    """初始化并注册所有内置角色"""
     
     # 注册骑士
     register_character(
@@ -100,5 +103,34 @@ def initialize_characters():
     )
 
 
-# 模块导入时自动初始化
+def initialize_plugins():
+    """加载插件目录中的角色插件"""
+    from config.game_config import get_game_config
+    from factory.plugin_loader import init_plugin_loader
+
+    config = get_game_config()
+
+    if not config.plugins_enabled:
+        return
+
+    # 解析插件目录路径（相对于项目根目录，即include的父目录）
+    plugins_dir = config.plugins_directory
+    if not os.path.isabs(plugins_dir):
+        # __file__ = include/factory/character_init.py
+        # 向上三级到达项目根目录
+        include_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        project_root = os.path.dirname(include_dir)
+        plugins_dir = os.path.join(project_root, plugins_dir)
+
+    loader = init_plugin_loader(plugins_dir)
+
+    if config.plugins_auto_load:
+        loader.load_all_plugins()
+
+    if config.hot_reload_enabled:
+        loader.start_watching(config.watch_interval)
+
+
+# 模块导入时自动初始化内置角色和插件
 initialize_characters()
+initialize_plugins()
