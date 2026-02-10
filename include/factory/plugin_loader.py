@@ -239,6 +239,8 @@ class PluginLoader:
         self._watching = False
         if self._watcher_thread and self._watcher_thread.is_alive():
             self._watcher_thread.join(timeout=5.0)
+            if self._watcher_thread.is_alive():
+                print("[热加载] 警告: 文件监视线程未能在超时内停止")
         self._watcher_thread = None
         print("[热加载] 文件监视已停止")
 
