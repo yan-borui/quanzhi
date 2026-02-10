@@ -157,13 +157,17 @@ def select_characters(min_players: int = 2, max_players: int = 6, max_retries: i
 
 
 def quick_select_default_characters() -> List[Character]:
-    """快速选择默认角色（骑士、召唤师、剑客）"""
+    """快速选择默认角色（从配置中读取）"""
+    from config.game_config import get_game_config
+
     factory = get_character_factory()
-    
-    print("\n使用默认角色配置：骑士、召唤师、剑客")
+    config = get_game_config()
+    default_ids = config.default_characters
+
+    print(f"\n使用默认角色配置：{', '.join(default_ids)}")
     
     characters = []
-    for role_id in ["knight", "summoner", "swordsman"]:
+    for role_id in default_ids:
         char = factory.create(role_id)
         if char:
             characters.append(char)

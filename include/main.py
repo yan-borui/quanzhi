@@ -7,6 +7,8 @@ from core.character import Character
 from characters.knight import Knight
 from characters.summoner import Summoner
 from characters.swordsman import Swordsman
+# 导入配置系统
+from config.game_config import get_game_config
 # 导入角色初始化以注册所有角色
 import factory.character_init
 from factory.character_selection import select_characters, quick_select_default_characters
@@ -25,8 +27,10 @@ class Game:
         初始化游戏
         
         Args:
-            characters: 参战角色列表。如果为None，将使用默认配置（骑士、召唤师、剑客）
+            characters: 参战角色列表。如果为None，将使用默认配置
         """
+        self.config = get_game_config()
+
         if characters is None or len(characters) == 0:
             # 使用默认角色
             characters = quick_select_default_characters()
@@ -72,7 +76,7 @@ class Game:
         self.update_alive_characters()
         if len(self.alive_characters) <= 1:
             return True
-        if self.round_count >= 100:
+        if self.round_count >= self.config.max_rounds:
             print("\n达到最大回合数限制！")
             return True
         return False
@@ -170,7 +174,7 @@ class Game:
         while not self.is_game_over():
             try:
                 self.play_round()
-                time.sleep(0.5)
+                time.sleep(self.config.round_delay)
             except KeyboardInterrupt:
                 print("\n\n游戏被中断！")
                 choice = input("是否退出游戏？(y/n): ").strip().lower()
@@ -617,19 +621,24 @@ class Game:
 
 
 def main():
+    config = get_game_config()
+
     print("=" * 60)
     print("欢迎来到角色战斗游戏！".center(60))
     print("=" * 60)
     print("\n游戏模式选择：")
     print("1. 自定义角色选择")
-    print("2. 使用默认角色（骑士、召唤师、剑客）")
+    print(f"2. 使用默认角色（{', '.join(config.default_characters)}）")
 
     while True:
         try:
             choice = input("\n请选择游戏模式 (1-2): ").strip()
             if choice == "1":
                 # 自定义选择角色
-                characters = select_characters(min_players=2, max_players=6)
+                characters = select_characters(
+                    min_players=config.min_players,
+                    max_players=config.max_players
+                )
                 break
             elif choice == "2":
                 # 使用默认角色

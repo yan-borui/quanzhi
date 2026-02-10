@@ -1,0 +1,16 @@
+{
+    "game": {
+        "max_rounds": 100,
+        "min_players": 2,
+        "max_players": 6,
+        "default_characters": ["knight", "summoner", "swordsman"],
+        "round_delay": 0.5
+    },
+    "plugins": {
+        "enabled": true,
+        "directory": "plugins",
+        "auto_load": true,
+        "hot_reload": false,
+        "watch_interval": 2.0
+    }
+}
