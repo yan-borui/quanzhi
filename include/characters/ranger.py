@@ -52,7 +52,6 @@ class Ranger(Character):
             return False
         target.add_control("纱袋", 1)
         # 强制位移：将目标移动到游侠所在的地块
-        old_block = target.get_block_id()
         target.set_block_id(self.block_id)
         print(f"{target.get_name()} 被强制位移到 {self.name} 所在的地块")
         return True

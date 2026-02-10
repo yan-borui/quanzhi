@@ -128,20 +128,17 @@ class Healer(Character):
         if not target:
             return False
         # 立盾机制：生成独立立盾实体或给现有立盾增加3血量
-        if target.shield_hp > 0 if isinstance(target, Healer) else False:
-            target.shield_hp += 3
-            print(f"{target.get_name()} 的立盾增加了3点血量，当前立盾血量: {target.shield_hp}")
-        elif isinstance(target, Healer):
-            target.shield_hp = 3
-            target._shield_controls.clear()
-            print(f"{target.get_name()} 获得了立盾，血量: {target.shield_hp}")
-        else:
-            # 对非治疗师目标使用：生成立盾效果（简化处理，使用累积效果）
-            current_shield = target.get_accumulation("立盾")
-            if current_shield > 0:
-                target.add_accumulation("立盾", 3)
+        if isinstance(target, Healer):
+            if target.shield_hp > 0:
+                target.shield_hp += 3
+                print(f"{target.get_name()} 的立盾增加了3点血量，当前立盾血量: {target.shield_hp}")
             else:
-                target.add_accumulation("立盾", 3)
+                target.shield_hp = 3
+                target._shield_controls.clear()
+                print(f"{target.get_name()} 获得了立盾，血量: {target.shield_hp}")
+        else:
+            # 对非治疗师目标使用：生成立盾效果（使用累积效果）
+            target.add_accumulation("立盾", 3)
             print(f"{target.get_name()} 获得了立盾效果")
         return True
 

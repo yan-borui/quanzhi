@@ -50,13 +50,14 @@ class OilMaster(Character):
         # 一锅油改为瞬发自身技能，忽略target参数
         if skill_name == "一锅油":
             success = skill.execute_with_target(self, self)
+            if success:
+                print(f"{self.name} 使用了 一锅油")
         else:
             success = skill.execute_with_target(self, target)
-
-        if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
-            if skill_name == "倒你脸上":
-                self.oil_pots -= 1
+            if success:
+                print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+                if skill_name == "倒你脸上":
+                    self.oil_pots -= 1
 
     def drink_oil(self, drinker: Character) -> bool:
         """喝油交互：任何角色均可执行，HP+3，消耗1个油锅计数"""
