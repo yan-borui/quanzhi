@@ -243,9 +243,9 @@ class PluginLoader:
             print(f"[插件] 警告: {filepath} 未定义 STATS_DATA，使用空字典")
         else:
             # STATS_DATA 模式校验
-            schema_error = validate_stats_data(stats_data, filepath)
-            if schema_error is not None:
-                print(f"[插件] 校验失败: {schema_error}")
+            validation_error = validate_stats_data(stats_data, filepath)
+            if validation_error is not None:
+                print(f"[插件] 校验失败: {validation_error}")
                 return False
 
         # 调用可选的 on_register 钩子
