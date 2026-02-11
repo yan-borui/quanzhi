@@ -13,6 +13,7 @@ from characters.summoner import Summoner
 from characters.ranger import Ranger
 from characters.oil_master import OilMaster
 from core.player import Player
+from main import Game
 
 
 # ========== 治疗师 (Healer) 测试 ==========
@@ -380,7 +381,6 @@ class TestDrinkOilGameAction:
         oil_master = OilMaster()
         oil_master.oil_pot_count = 1
         target = Player("战士", 60)
-        from main import Game
         game = Game([oil_master, target])
         actions = game.get_available_actions(target)
         assert "[交互] 喝油 (HP+3)" in actions
@@ -390,7 +390,6 @@ class TestDrinkOilGameAction:
         oil_master = OilMaster()
         oil_master.oil_pot_count = 0
         target = Player("战士", 60)
-        from main import Game
         game = Game([oil_master, target])
         actions = game.get_available_actions(target)
         assert "[交互] 喝油 (HP+3)" not in actions
@@ -399,7 +398,6 @@ class TestDrinkOilGameAction:
         """场上无卖油翁时，不显示喝油"""
         p1 = Player("战士1", 60)
         p2 = Player("战士2", 60)
-        from main import Game
         game = Game([p1, p2])
         actions = game.get_available_actions(p1)
         assert "[交互] 喝油 (HP+3)" not in actions
@@ -410,7 +408,6 @@ class TestDrinkOilGameAction:
         oil_master.oil_pot_count = 2
         target = Player("战士", 60)
         target.set_current_hp(50)
-        from main import Game
         game = Game([oil_master, target])
         result = game.execute_player_action(target, "[交互] 喝油 (HP+3)")
         assert result is True
@@ -420,7 +417,6 @@ class TestDrinkOilGameAction:
     def test_pot_skill_skips_target_selection(self):
         """一锅油在execute_player_action中跳过目标选择"""
         oil_master = OilMaster()
-        from main import Game
         game = Game([oil_master, Player("敌人", 60)])
         result = game.execute_player_action(oil_master, "技能:一锅油")
         assert result is True
