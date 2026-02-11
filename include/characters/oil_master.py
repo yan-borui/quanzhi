@@ -95,9 +95,6 @@ class OilMaster(Character):
     def _face_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        if self.oil_pot_count <= 0:
-            print(f"{self.name} 没有可用的油锅，无法使用倒你脸上")
-            return False
         self.oil_pot_count -= 1
         target.take_damage(self.apply_attack_buff(15))
         return True
