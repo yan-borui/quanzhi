@@ -73,8 +73,9 @@ class Swordsman(Character):
             return False
 
         print(f"{self.name} 使用了 回旋斩！")
+        damage = self.apply_attack_buff(6)
         for target in targets:
-            target.take_damage(6)
+            target.take_damage(damage)
             target.add_imprint("剑意", 1)
 
         skill.set_cooldown(skill.get_base_cooldown())
@@ -83,7 +84,7 @@ class Swordsman(Character):
     def _effortless_slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(6)
+        target.take_damage(self.apply_attack_buff(6))
         target.add_imprint("剑意", 1)
         return True
 
@@ -100,7 +101,7 @@ class Swordsman(Character):
     def _invincible_thrust_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(42)
+        target.take_damage(self.apply_attack_buff(42))
         self.invincible_strike_used.add(id(target))
         return True
 

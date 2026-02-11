@@ -84,13 +84,13 @@ class Knight(Character):
     def _fearless_charge_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(12)
+        target.take_damage(self.apply_attack_buff(12))
         return True
 
     def _slash_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(3)
+        target.take_damage(self.apply_attack_buff(3))
         return True
 
     def _shield_effect(self, caster: Character, target: Optional[Character]) -> bool:

@@ -86,7 +86,7 @@ class ArrayMaster(Character):
             return False
         result = _DUAL_JUDGMENT_SYSTEM.judge(caster, target, "五彩法阵")
         if result == JudgmentResult.INITIATOR_WIN:
-            target.take_damage(60)
+            target.take_damage(self.apply_attack_buff(60))
             return True
         print(f"{caster.get_name()} 在五彩法阵判定中未获胜（结果: {result.value}），技能未成功发动")
         return False

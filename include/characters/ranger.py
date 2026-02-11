@@ -41,7 +41,7 @@ class Ranger(Character):
         if not target:
             return False
         damage = 6 if self.is_nearby(target) else 3
-        target.take_damage(damage)
+        target.take_damage(self.apply_attack_buff(damage))
         return True
 
     def _sandbag_effect(self, caster: Character, target: Optional[Character]) -> bool:
