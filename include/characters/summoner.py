@@ -58,21 +58,29 @@ class Summoner(Character):
             self.add_accumulation("狼", 1)
             print(f"{self.name} 召唤了一只狼，当前狼积累: {self.get_accumulation('狼')}")
         else:
-            # 对他人使用：施加易伤和攻击强化
+            # 对他人使用：施加易伤
             # 情况B：施加易伤状态（下一回合受到的伤害增加20%，可叠加）
             current_vulnerability = target.get_accumulation("易伤")
             target.add_accumulation("易伤", 20)
             print(f"{target.get_name()} 被施加了易伤状态，下回合受到伤害增加 {current_vulnerability + 20}%")
 
+        return True
+
+    def _bear_effect(self, caster: Character, target: Optional[Character]) -> bool:
+        if not target:
+            return False
+
+        if target is self:
+            # 情况A：目标为自己，积累层数+1
+            self.add_accumulation("熊", 1)
+            print(f"{self.name} 召唤了一只熊，当前熊积累: {self.get_accumulation('熊')}")
+
+        else:
+            # 对他人使用：施加攻击强化
             # 情况C：施加攻击强化状态（下一次造成伤害+6，可叠加）
             target.add_accumulation("攻击强化", 6)
             print(f"{target.get_name()} 获得了攻击强化，下次造成伤害 +{target.get_accumulation('攻击强化')}")
 
-        return True
-
-    def _bear_effect(self, caster: Character, target: Optional[Character]) -> bool:
-        self.add_accumulation("熊", 1)
-        print(f"{self.name} 召唤了一只熊，当前熊积累: {self.get_accumulation('熊')}")
         return True
 
     def _coordinated_attack_effect(self, caster: Character, target: Optional[Character]) -> bool:
