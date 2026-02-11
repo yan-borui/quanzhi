@@ -36,7 +36,7 @@ class Target(Character):
     def _basic_attack_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(6)
+        target.take_damage(self.apply_attack_buff(6))
         return True
 
 

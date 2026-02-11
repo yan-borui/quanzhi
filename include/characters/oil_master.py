@@ -47,6 +47,10 @@ class OilMaster(Character):
             print("本回合已倒过油，无法再次使用倒你脸上")
             return
 
+        if skill_name == "倒你脸上" and self.oil_pot_count <= 0:
+            print(f"{self.name} 没有可用的油锅，无法使用倒你脸上")
+            return
+
         # 一锅油改为瞬发自身技能，忽略target参数
         if skill_name == "一锅油":
             success = skill.execute_with_target(self, self)
@@ -72,13 +76,13 @@ class OilMaster(Character):
     def _pour_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(6)
+        target.take_damage(self.apply_attack_buff(6))
         return True
 
     def _teach_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(6)
+        target.take_damage(self.apply_attack_buff(6))
         target.add_control("教训你", 1)
         return True
 
@@ -91,7 +95,11 @@ class OilMaster(Character):
     def _face_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        target.take_damage(15)
+        if self.oil_pot_count <= 0:
+            print(f"{self.name} 没有可用的油锅，无法使用倒你脸上")
+            return False
+        self.oil_pot_count -= 1
+        target.take_damage(self.apply_attack_buff(15))
         return True
 
     def on_turn_start(self):

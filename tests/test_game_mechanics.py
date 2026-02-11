@@ -180,12 +180,12 @@ class TestSummonerWolf:
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("易伤") == 20
 
-    def test_wolf_other_applies_attack_buff(self):
-        """目标为他人时施加攻击强化"""
+    def test_wolf_other_no_attack_buff(self):
+        """目标为他人时不施加攻击强化（攻击强化由熊提供）"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("狼", target)
-        assert target.get_accumulation("攻击强化") == 6
+        assert target.get_accumulation("攻击强化") == 0
 
     def test_wolf_vulnerability_stacks_linearly(self):
         """易伤倍率可线性叠加"""
@@ -198,14 +198,14 @@ class TestSummonerWolf:
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("易伤") == 60
 
-    def test_wolf_attack_buff_stacks(self):
-        """攻击强化可叠加"""
+    def test_wolf_no_attack_buff_stacks(self):
+        """狼不施加攻击强化"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("狼", target)
         summoner.get_skill("狼").set_cooldown(0)
         summoner.use_skill_on_target("狼", target)
-        assert target.get_accumulation("攻击强化") == 12
+        assert target.get_accumulation("攻击强化") == 0
 
     def test_wolf_self_no_vulnerability(self):
         """目标为自己时不施加易伤"""
@@ -218,6 +218,80 @@ class TestSummonerWolf:
         summoner = Summoner()
         summoner.use_skill_on_target("狼", summoner)
         assert summoner.get_accumulation("攻击强化") == 0
+
+
+class TestVulnerabilityMechanic:
+    """易伤效果机制测试"""
+
+    def test_vulnerability_increases_damage(self):
+        """有易伤的目标受到攻击时伤害增加"""
+        target = Player("目标", 60)
+        target.add_accumulation("易伤", 20)  # 20%易伤
+        target.take_damage(10)
+        # 10 + 10*20//100 = 10 + 2 = 12
+        assert target.get_current_hp() == 48
+
+    def test_vulnerability_consumed_after_hit(self):
+        """易伤在受到攻击后被消耗"""
+        target = Player("目标", 60)
+        target.add_accumulation("易伤", 20)
+        target.take_damage(10)
+        assert target.get_accumulation("易伤") == 0
+
+    def test_vulnerability_stacked_increases_more(self):
+        """叠加的易伤提供更高伤害增加"""
+        target = Player("目标", 60)
+        target.add_accumulation("易伤", 60)  # 60%易伤
+        target.take_damage(10)
+        # 10 + 10*60//100 = 10 + 6 = 16
+        assert target.get_current_hp() == 44
+
+    def test_no_vulnerability_normal_damage(self):
+        """没有易伤的目标受到正常伤害"""
+        target = Player("目标", 60)
+        target.take_damage(10)
+        assert target.get_current_hp() == 50
+
+
+class TestAttackBuffMechanic:
+    """攻击强化效果机制测试"""
+
+    def test_attack_buff_increases_damage(self):
+        """攻击强化增加造成的伤害"""
+        from characters.target import Target
+        attacker = Target("攻击者")
+        attacker.add_accumulation("攻击强化", 6)
+        target = Player("目标", 60)
+        attacker.use_skill_on_target("平A", target)
+        # 基础伤害6 + 攻击强化6 = 12
+        assert target.get_current_hp() == 48
+
+    def test_attack_buff_consumed_after_attack(self):
+        """攻击强化在攻击后被消耗"""
+        from characters.target import Target
+        attacker = Target("攻击者")
+        attacker.add_accumulation("攻击强化", 6)
+        target = Player("目标", 60)
+        attacker.use_skill_on_target("平A", target)
+        assert attacker.get_accumulation("攻击强化") == 0
+
+    def test_attack_buff_stacked_increases_more(self):
+        """叠加的攻击强化提供更高伤害增加"""
+        from characters.target import Target
+        attacker = Target("攻击者")
+        attacker.add_accumulation("攻击强化", 12)
+        target = Player("目标", 60)
+        attacker.use_skill_on_target("平A", target)
+        # 基础伤害6 + 攻击强化12 = 18
+        assert target.get_current_hp() == 42
+
+    def test_no_attack_buff_normal_damage(self):
+        """没有攻击强化时造成正常伤害"""
+        from characters.target import Target
+        attacker = Target("攻击者")
+        target = Player("目标", 60)
+        attacker.use_skill_on_target("平A", target)
+        assert target.get_current_hp() == 54
 
 
 # ========== 游侠 (Ranger) 测试 ==========
@@ -334,30 +408,81 @@ class TestOilMasterTurnReset:
     def test_face_skill_reusable_after_turn_start(self):
         """倒你脸上在新回合开始后可以再次使用"""
         oil_master = OilMaster()
-        oil_master.oil_pot_count = 2
+        oil_master.oil_pot_count = 3
         target = Player("目标", 60)
-        # 使用一次倒你脸上
+        # 使用一次倒你脸上（消耗1个oil_pot_count和1个oil_pots）
         oil_master.use_skill_on_target("倒你脸上", target)
         assert oil_master.oil_pots == 0
-        # 本回合不能再使用
+        assert oil_master.oil_pot_count == 2
+        # 本回合不能再使用（oil_pots限制）
         old_hp = target.get_current_hp()
         oil_master.use_skill_on_target("倒你脸上", target)
         assert target.get_current_hp() == old_hp  # HP不变，技能未生效
-        # 新回合开始后重置
+        # 新回合开始后重置oil_pots
         oil_master.on_turn_start()
         assert oil_master.oil_pots == 1
+
+
+class TestOilMasterFaceRequiresOil:
+    """卖油翁倒你脸上需要并消耗油锅测试"""
+
+    def test_face_consumes_oil_pot_count(self):
+        """倒你脸上消耗油锅计数"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 2
+        target = Player("目标", 60)
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert oil_master.oil_pot_count == 1
+
+    def test_face_fails_without_oil_pot_count(self):
+        """没有油锅时无法使用倒你脸上"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 0
+        target = Player("目标", 60)
+        old_hp = target.get_current_hp()
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert target.get_current_hp() == old_hp  # 目标HP不变
+
+    def test_face_cannot_use_unlimited(self):
+        """一锅油被使用后不能无限次倒你脸上"""
+        oil_master = OilMaster()
+        oil_master.use_skill("一锅油")
+        assert oil_master.oil_pot_count == 1
+        target = Player("目标", 60)
+        # 使用一次倒你脸上
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert oil_master.oil_pot_count == 0
+        # 新回合重置oil_pots
+        oil_master.on_turn_start()
+        # 再次使用应失败（没有油锅了）
+        old_hp = target.get_current_hp()
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert target.get_current_hp() == old_hp
+
+    def test_drink_oil_also_consumes(self):
+        """喝油也消耗油锅计数，喝完后不能再倒"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 1
+        drinker = Player("喝油者", 60)
+        oil_master.drink_oil(drinker)
+        assert oil_master.oil_pot_count == 0
+        # 没有油锅了，倒你脸上应失败
+        target = Player("目标", 60)
+        old_hp = target.get_current_hp()
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert target.get_current_hp() == old_hp
 
 
 class TestSummonerTargetSelection:
     """召唤师技能目标选择测试"""
 
     def test_wolf_on_other_target(self):
-        """狼技能可指定他人为目标"""
+        """狼技能可指定他人为目标，施加易伤但不施加攻击强化"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("易伤") == 20
-        assert target.get_accumulation("攻击强化") == 6
+        assert target.get_accumulation("攻击强化") == 0
 
     def test_bear_on_self(self):
         """熊技能对自己使用时积累+1"""
@@ -365,12 +490,13 @@ class TestSummonerTargetSelection:
         summoner.use_skill_on_target("熊", summoner)
         assert summoner.get_accumulation("熊") == 1
 
-    def test_bear_on_other_still_self_accumulates(self):
-        """熊技能即使指定他人为目标，仍为自身积累"""
+    def test_bear_on_other_applies_attack_buff(self):
+        """熊技能对他人使用时施加攻击强化"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("熊", target)
-        assert summoner.get_accumulation("熊") == 1
+        assert target.get_accumulation("攻击强化") == 6
+        assert summoner.get_accumulation("熊") == 0
 
 
 class TestDrinkOilGameAction:

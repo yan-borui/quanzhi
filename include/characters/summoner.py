@@ -100,7 +100,7 @@ class Summoner(Character):
             print(f"齐攻失败：没有足够的狼或熊积累")
             return False
 
-        target.take_damage(30)
+        target.take_damage(self.apply_attack_buff(30))
         return True
 
     def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):

@@ -147,6 +147,15 @@ class Character(ABC):
         """检查是否在某个角色附近（基于block_id判断，避免邻接表不同步）"""
         return self.block_id == character.block_id
 
+    def apply_attack_buff(self, base_damage: int) -> int:
+        """应用攻击强化效果并消耗，返回最终伤害值"""
+        buff = self.get_accumulation("攻击强化")
+        if buff > 0:
+            print(f"{self.name} 的攻击强化效果生效，伤害增加 {buff} 点")
+            self.clear_accumulation("攻击强化")
+            return base_damage + buff
+        return base_damage
+
     # 受伤并显示（确保边界）
     def take_damage(self, damage: int):
         if damage <= 0:
@@ -158,6 +167,14 @@ class Character(ABC):
             self.clear_control("护盾")
             print(f"{self.name} 的护盾抵消了这次攻击！")
             return
+
+        # 易伤效果：受到伤害增加，然后消耗易伤
+        vulnerability = self.get_accumulation("易伤")
+        if vulnerability > 0:
+            bonus = damage * vulnerability // 100
+            damage += bonus
+            print(f"{self.name} 的易伤效果生效，伤害增加 {bonus} 点")
+            self.clear_accumulation("易伤")
 
         was_alive = self.is_alive()
         self.current_hp -= damage
