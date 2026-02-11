@@ -13,6 +13,7 @@ from characters.summoner import Summoner
 from characters.ranger import Ranger
 from characters.oil_master import OilMaster
 from core.player import Player
+from main import Game
 
 
 # ========== 治疗师 (Healer) 测试 ==========
@@ -317,4 +318,106 @@ class TestOilMasterPot:
         oil_master = OilMaster()
         target = Player("目标", 60)
         oil_master.use_skill_on_target("一锅油", target)
+        assert oil_master.oil_pot_count == 1
+
+
+class TestOilMasterTurnReset:
+    """卖油翁回合状态重置测试"""
+
+    def test_oil_pots_reset_on_turn_start(self):
+        """回合开始时重置oil_pots为1"""
+        oil_master = OilMaster()
+        oil_master.oil_pots = 0
+        oil_master.on_turn_start()
+        assert oil_master.oil_pots == 1
+
+    def test_face_skill_reusable_after_turn_start(self):
+        """倒你脸上在新回合开始后可以再次使用"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 2
+        target = Player("目标", 60)
+        # 使用一次倒你脸上
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert oil_master.oil_pots == 0
+        # 本回合不能再使用
+        old_hp = target.get_current_hp()
+        oil_master.use_skill_on_target("倒你脸上", target)
+        assert target.get_current_hp() == old_hp  # HP不变，技能未生效
+        # 新回合开始后重置
+        oil_master.on_turn_start()
+        assert oil_master.oil_pots == 1
+
+
+class TestSummonerTargetSelection:
+    """召唤师技能目标选择测试"""
+
+    def test_wolf_on_other_target(self):
+        """狼技能可指定他人为目标"""
+        summoner = Summoner()
+        target = Player("目标", 60)
+        summoner.use_skill_on_target("狼", target)
+        assert target.get_accumulation("易伤") == 20
+        assert target.get_accumulation("攻击强化") == 6
+
+    def test_bear_on_self(self):
+        """熊技能对自己使用时积累+1"""
+        summoner = Summoner()
+        summoner.use_skill_on_target("熊", summoner)
+        assert summoner.get_accumulation("熊") == 1
+
+    def test_bear_on_other_still_self_accumulates(self):
+        """熊技能即使指定他人为目标，仍为自身积累"""
+        summoner = Summoner()
+        target = Player("目标", 60)
+        summoner.use_skill_on_target("熊", target)
+        assert summoner.get_accumulation("熊") == 1
+
+
+class TestDrinkOilGameAction:
+    """喝油全局交互机制测试（Game层面）"""
+
+    def test_drink_oil_action_appears_when_oil_available(self):
+        """场上存在卖油翁且油锅计数>0时，动作列表包含喝油"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 1
+        target = Player("战士", 60)
+        game = Game([oil_master, target])
+        actions = game.get_available_actions(target)
+        assert "[交互] 喝油 (HP+3)" in actions
+
+    def test_drink_oil_action_absent_when_no_oil(self):
+        """场上卖油翁油锅计数为0时，不显示喝油"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 0
+        target = Player("战士", 60)
+        game = Game([oil_master, target])
+        actions = game.get_available_actions(target)
+        assert "[交互] 喝油 (HP+3)" not in actions
+
+    def test_drink_oil_action_absent_when_no_oil_master(self):
+        """场上无卖油翁时，不显示喝油"""
+        p1 = Player("战士1", 60)
+        p2 = Player("战士2", 60)
+        game = Game([p1, p2])
+        actions = game.get_available_actions(p1)
+        assert "[交互] 喝油 (HP+3)" not in actions
+
+    def test_execute_drink_oil_action(self):
+        """执行喝油动作：HP+3，油锅计数-1"""
+        oil_master = OilMaster()
+        oil_master.oil_pot_count = 2
+        target = Player("战士", 60)
+        target.set_current_hp(50)
+        game = Game([oil_master, target])
+        result = game.execute_player_action(target, "[交互] 喝油 (HP+3)")
+        assert result is True
+        assert target.get_current_hp() == 53
+        assert oil_master.oil_pot_count == 1
+
+    def test_pot_skill_skips_target_selection(self):
+        """一锅油在execute_player_action中跳过目标选择"""
+        oil_master = OilMaster()
+        game = Game([oil_master, Player("敌人", 60)])
+        result = game.execute_player_action(oil_master, "技能:一锅油")
+        assert result is True
         assert oil_master.oil_pot_count == 1

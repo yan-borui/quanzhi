@@ -7,6 +7,7 @@ from core.character import Character
 from characters.knight import Knight
 from characters.summoner import Summoner
 from characters.swordsman import Swordsman
+from characters.oil_master import OilMaster
 # 导入配置系统
 from config.game_config import get_game_config
 # 导入角色初始化以注册所有角色
@@ -438,6 +439,13 @@ class Game:
         for control_name in character.control.keys():
             if control_name in HARMLESS_CONTROLS:
                 actions.append(f"行为:解控-{control_name}")
+
+        # 全局交互：喝油 - 场上存在卖油翁且油锅计数>0时，所有角色可喝油
+        for char in self.alive_characters:
+            if isinstance(char, OilMaster) and char.oil_pot_count > 0:
+                actions.append("[交互] 喝油 (HP+3)")
+                break
+
         return actions
 
     def display_action_options(self, character):
@@ -492,7 +500,7 @@ class Game:
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
 
-            if skill_name in ["盾", "狼", "熊"]:
+            if skill_name in ["盾", "一锅油"]:
                 print(f"\n>>> {character.name} 使用技能 {skill_name}")
                 character.use_skill(skill_name)
                 return True
@@ -602,6 +610,14 @@ class Game:
                 else:
                     print(f"未找到控制效果：{control_name}")
                     return False
+
+        elif action == "[交互] 喝油 (HP+3)":
+            for char in self.alive_characters:
+                if isinstance(char, OilMaster) and char.oil_pot_count > 0:
+                    char.drink_oil(character)
+                    return True
+            print("场上没有可用的油锅！")
+            return False
 
         return False
 
