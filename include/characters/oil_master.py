@@ -94,6 +94,11 @@ class OilMaster(Character):
         target.take_damage(15)
         return True
 
+    def on_turn_start(self):
+        """回合开始时重置每回合限制标记"""
+        super().on_turn_start()
+        self.oil_pots = 1
+
     def reset_battle_round(self):
         self.oil_pots = 1
 
