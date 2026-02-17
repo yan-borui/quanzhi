@@ -2,7 +2,9 @@
 # main.py
 import random
 import time
-from typing import List
+import io
+from contextlib import redirect_stdout
+from typing import List, Optional
 from core.character import Character
 from characters.knight import Knight
 from characters.summoner import Summoner
@@ -14,37 +16,28 @@ from config.game_config import get_game_config
 import factory.character_init
 from factory.character_selection import select_characters, quick_select_default_characters
 # 导入新系统
-from systems.dual_judgment import DualJudgmentSystem, JudgmentResult
-from systems.continuous_effect import ContinuousEffectSystem, ContinuousEffect, RemovalCondition
+from systems.dual_judgment import DualJudgmentSystem
+from systems.continuous_effect import ContinuousEffectSystem
 from systems.state_binding import StateBindingSystem
-
 
 from core.character import HARMLESS_CONTROLS
 
 
-class Game:
+class GameBackend:
     def __init__(self, characters: List[Character] = None):
-        """
-        初始化游戏
-        
-        Args:
-            characters: 参战角色列表。如果为None，将使用默认配置
-        """
         self.config = get_game_config()
 
         if characters is None or len(characters) == 0:
-            # 使用默认角色
             characters = quick_select_default_characters()
 
         self.all_characters = characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
-        
-        # 初始化新系统
+
         self.dual_judgment_system = DualJudgmentSystem()
         self.continuous_effect_system = ContinuousEffectSystem()
         self.state_binding_system = StateBindingSystem()
-        
+
         self.initialize_block_system()
 
     def initialize_block_system(self):
@@ -53,8 +46,6 @@ class Game:
             char.nearby_characters = [char]
 
     def reset_game(self):
-        print("\n=== 重置游戏 ===")
-        # 重新创建所有角色（保持相同类型和名称）
         new_characters = []
         for char in self.all_characters:
             char_class = type(char)
@@ -64,80 +55,75 @@ class Game:
         self.all_characters = new_characters
         self.alive_characters = self.all_characters.copy()
         self.round_count = 0
-        
-        # 重置新系统
+
         self.dual_judgment_system = DualJudgmentSystem()
         self.continuous_effect_system = ContinuousEffectSystem()
         self.state_binding_system = StateBindingSystem()
-        
+
         self.initialize_block_system()
-        print("游戏已重置！\n")
+        return {"reset": True}
 
     def is_game_over(self):
         self.update_alive_characters()
-        if len(self.alive_characters) <= 1:
-            return True
-        if self.round_count >= self.config.max_rounds:
-            print("\n达到最大回合数限制！")
-            return True
-        return False
+        return len(self.alive_characters) <= 1 or self.round_count >= self.config.max_rounds
 
-    def display_game_over(self):
-        print("\n" + "=" * 60)
-        print("=== 游戏结束 ===")
-        print("=" * 60)
-
+    def get_game_over_summary(self):
+        self.update_alive_characters()
         if len(self.alive_characters) == 1:
             winner = self.alive_characters[0]
-            print(f"\n>>> 获胜者: {winner.name}")
-            print(f"    剩余生命值: {winner.current_hp}/{winner.max_hp}")
+            result = {
+                "type": "winner",
+                "winner_name": winner.name,
+                "winner_hp": winner.current_hp,
+                "winner_max_hp": winner.max_hp,
+            }
         elif len(self.alive_characters) == 0:
-            print("\n所有角色同归于尽！")
+            result = {"type": "all_destroyed"}
         else:
-            print("\n游戏平局！")
-            print(f"存活角色: {[char.name for char in self.alive_characters]}")
+            result = {
+                "type": "draw",
+                "alive_names": [char.name for char in self.alive_characters]
+            }
 
-        print(f"\n总回合数: {self.round_count}")
-        print("\n最终状态:")
-        for char in self.all_characters:
-            status = "存活" if char.is_alive() else "已摧毁"
-            print(f"  {char.name}: {char.current_hp}/{char.max_hp} HP [{status}]")
+        result["round_count"] = self.round_count
+        result["max_rounds_reached"] = self.round_count >= self.config.max_rounds
+        result["final_status"] = [
+            {
+                "name": char.name,
+                "current_hp": char.current_hp,
+                "max_hp": char.max_hp,
+                "alive": char.is_alive(),
+            }
+            for char in self.all_characters
+        ]
+        return result
 
-        print("=" * 60)
-
-    def play_round(self):
+    def start_round(self):
         self.round_count += 1
 
-        # 为所有角色标记当前回合（用于骑士盾的限定逻辑）
         for char in self.all_characters:
             char.current_round = self.round_count
 
-        # 开启本回合的事件记录
         for char in self.all_characters:
             if hasattr(char, "start_new_turn_log"):
                 char.start_new_turn_log()
 
-        # 回合开始时调用 on_turn_start
         for char in self.all_characters:
             if hasattr(char, 'on_turn_start'):
                 char.on_turn_start()
 
-        self.display_battle_status()
         self.reduce_all_cooldowns()
+        rps_result = self.rock_paper_scissors()
 
-        winner = self.rock_paper_scissors()
-        if winner is None:
-            print("没有角色可以行动！")
-            return
+        return {
+            "round_count": self.round_count,
+            "battle_status": self.get_battle_status(),
+            "winner": rps_result["winner"],
+            "rps_logs": rps_result["logs"],
+            "winner_message": None if rps_result["winner"] is None else f"本回合由 {rps_result['winner'].name} 先手！"
+        }
 
-        print(f"\n>>> 本回合由 {winner.name} 先手！")
-        action = self.display_action_options(winner)
-        success = self.execute_player_action(winner, action)
-
-        if not success:
-            print(f"\n[警告] {winner.name} 的动作未能成功执行（废步）")
-
-        # 检查所有骑士角色的死亡盾窗口过期（针对死亡后未获得出手机会的情况）
+    def finish_round(self, winner: Optional[Character]):
         for char in self.all_characters:
             if isinstance(char, Knight):
                 if (char.death_shield_window_active
@@ -147,63 +133,27 @@ class Game:
                     char.expire_death_shield_window()
 
         self.update_alive_characters()
+        return self.get_round_end_status()
 
-        print(f"\n{'=' * 60}")
-        print(f"第 {self.round_count} 回合结束".center(60))
-        print('=' * 60)
-        for char in self.all_characters:
-            if char.is_alive():
-                hp_bar = self.get_hp_bar(char, 15)
-                print(f"{char.name}: {hp_bar} {char.current_hp}/{char.max_hp} HP")
-            else:
-                print(f"{char.name}: [已摧毁]")
-        print('=' * 60)
-
-    def start(self):
-        print("=" * 60)
-        print("欢迎来到角色战斗游戏！".center(60))
-        print("=" * 60)
-        print("\n参战角色:")
-        for char in self.all_characters:
-            print(f"  - {char.name}: {char.max_hp} HP")
-        print("\n游戏规则:")
-        print("  1. 每回合通过石头剪刀布决定先手")
-        print("  2. 使用技能攻击对手或执行战术动作")
-        print("  3. 最后存活的角色获胜")
-        print("=" * 60)
-
-        while not self.is_game_over():
-            try:
-                self.play_round()
-                time.sleep(self.config.round_delay)
-            except KeyboardInterrupt:
-                print("\n\n游戏被中断！")
-                choice = input("是否退出游戏？(y/n): ").strip().lower()
-                if choice == 'y':
-                    print("游戏已退出。")
-                    return
-            except Exception as e:
-                print(f"\n发生错误: {e}")
-                import traceback
-                traceback.print_exc()
-                choice = input("是否继续游戏？(y/n): ").strip().lower()
-                if choice != 'y':
-                    return
-
-        self.display_game_over()
-        choice = input("\n是否重新开始游戏？(y/n): ").strip().lower()
-        if choice == 'y':
-            self.reset_game()
-            self.start()
-
-    def run(self):
-        self.start()
+    def get_round_end_status(self):
+        return {
+            "round_count": self.round_count,
+            "characters": [
+                {
+                    "name": char.name,
+                    "alive": char.is_alive(),
+                    "current_hp": char.current_hp,
+                    "max_hp": char.max_hp,
+                    "hp_bar": self.get_hp_bar(char, 15) if char.is_alive() else None,
+                }
+                for char in self.all_characters
+            ]
+        }
 
     def move_character_to_block(self, character: Character, target_block_id: int):
         old_block_id = character.block_id
         if old_block_id == target_block_id:
-            print(f"{character.name} 已经在目标位置")
-            return
+            return {"success": False, "message": f"{character.name} 已经在目标位置"}
 
         old_block_chars = [c for c in self.all_characters if c.block_id == old_block_id and c != character]
         for other_char in old_block_chars:
@@ -212,11 +162,10 @@ class Game:
 
         character.block_id = target_block_id
         self.rebuild_all_nearby_lists()
-        
-        # 触发移动事件，检查是否需要移除持续效果
+
         self.continuous_effect_system.check_and_remove_on_event(character, "movement")
-        
-        print(f"{character.name} 移动到块 {target_block_id}")
+
+        return {"success": True, "message": f"{character.name} 移动到块 {target_block_id}"}
 
     def rebuild_all_nearby_lists(self):
         blocks = {}
@@ -249,28 +198,18 @@ class Game:
         prev_alive = set(self.alive_characters)
         self.alive_characters = [char for char in self.all_characters if char.is_alive()]
 
-        # 记录所有骑士角色的死亡/复活，以便开启/关闭"死亡后盾"窗口
         for char in self.all_characters:
             if isinstance(char, Knight):
                 was_alive = char in prev_alive
                 is_alive_now = char in self.alive_characters
                 if was_alive and not is_alive_now:
-                    # 死亡发生在当前回合
                     char.on_death_event(self.round_count)
                 elif (not was_alive) and is_alive_now:
-                    # 角色已复活，关闭死亡窗口
                     char.on_revive_event()
 
-    def display_battle_status(self):
-        print(f"\n{'=' * 60}")
-        print(f"第 {self.round_count + 1} 回合开始".center(60))
-        print('=' * 60)
-
+    def get_battle_status(self):
+        status = []
         for char in self.all_characters:
-            status = "存活" if char.is_alive() else "已摧毁"
-            hp_bar = self.get_hp_bar(char)
-            print(f"{char.name:10} [{status:4}] {hp_bar} {char.current_hp:2}/{char.max_hp:2} HP")
-
             status_info = []
             if char.control:
                 status_info.append(f"控制:{list(char.control.keys())}")
@@ -280,11 +219,16 @@ class Game:
                 status_info.append(f"积累:{char.accumulations}")
             if isinstance(char, Knight) and hasattr(char, 'shield_charges'):
                 status_info.append(f"盾次数:{char.shield_charges}")
-
-            if status_info:
-                print(f"           {' | '.join(status_info)}")
-
-        print('=' * 60)
+            status.append({
+                "character": char,
+                "name": char.name,
+                "alive": char.is_alive(),
+                "current_hp": char.current_hp,
+                "max_hp": char.max_hp,
+                "hp_bar": self.get_hp_bar(char),
+                "status_info": status_info,
+            })
+        return status
 
     def get_hp_bar(self, character: Character, bar_length: int = 20) -> str:
         if character.max_hp == 0:
@@ -298,36 +242,39 @@ class Game:
             char.reduce_all_cooldowns()
 
     def rock_paper_scissors(self):
-        print("\n=== 石头剪刀布环节 ===")
         participants = self.alive_characters.copy()
+        logs = ["=== 石头剪刀布环节 ==="]
 
-        # 检查所有死亡的骑士是否可以使用盾技能参与本回合
         for char in self.all_characters:
             if not char.is_alive() and isinstance(char, Knight) and char.can_use_shield():
                 if char not in participants:
                     participants.append(char)
-                    print(f"{char.name} 虽已阵亡，但仍有盾技能可用，参与本回合！")
+                    logs.append(f"{char.name} 虽已阵亡，但仍有盾技能可用，参与本回合！")
 
         if not participants:
-            return None
+            return {"winner": None, "logs": logs}
 
+        winner = self._resolve_rps_winner(participants, logs)
+        return {"winner": winner, "logs": logs}
+
+    def _resolve_rps_winner(self, participants, logs):
         choices = ['石头', '剪刀', '布']
         player_choices = {}
 
         for char in participants:
             choice = random.choice(choices)
             player_choices[char] = choice
-            print(f"{char.name} 出了：{choice}")
+            logs.append(f"{char.name} 出了：{choice}")
 
         unique_choices = set(player_choices.values())
 
         if len(unique_choices) == 1:
-            print("平局！重新开始...")
-            return self.rock_paper_scissors()
+            logs.append("平局！重新开始...")
+            return self._resolve_rps_winner(participants, logs)
 
         if len(unique_choices) == 3:
-            print("三种都有，平局！重新开始...")
-            return self.rock_paper_scissors()
+            logs.append("三种都有，平局！重新开始...")
+            return self._resolve_rps_winner(participants, logs)
 
         winning_choice = None
         if '石头' in unique_choices and '剪刀' in unique_choices:
@@ -341,15 +288,11 @@ class Game:
 
         if len(winners) == 1:
             winner = winners[0]
-            print(f"{winner.name} 获胜！")
+            logs.append(f"{winner.name} 获胜！")
             return winner
-        else:
-            print(f"多个赢家：{[w.name for w in winners]}，继续猜拳...")
-            temp_alive = self.alive_characters
-            self.alive_characters = winners
-            winner = self.rock_paper_scissors()
-            self.alive_characters = temp_alive
-            return winner
+
+        logs.append(f"多个赢家：{[w.name for w in winners]}，继续猜拳...")
+        return self._resolve_rps_winner(winners, logs)
 
     def get_available_actions(self, character):
         actions = []
@@ -360,7 +303,6 @@ class Game:
                 actions.append("技能:盾")
             for control_name in active_controls:
                 actions.append(f"行为:解控-{control_name}")
-            # 仍允许无害控制被主动解除
             harmless_to_clear = HARMLESS_CONTROLS.intersection(character.control.keys()) - set(active_controls)
             for control_name in harmless_to_clear:
                 actions.append(f"行为:解控-{control_name}")
@@ -435,12 +377,10 @@ class Game:
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
 
-        # 允许在正常行动时主动清除无害类控制（例如护盾、风阵、燃烧瓶、火阵）
         for control_name in character.control.keys():
             if control_name in HARMLESS_CONTROLS:
                 actions.append(f"行为:解控-{control_name}")
 
-        # 全局交互：喝油 - 场上存在卖油翁且油锅计数>0时，所有角色可喝油
         for char in self.alive_characters:
             if isinstance(char, OilMaster) and char.oil_pot_count > 0:
                 actions.append("[交互] 喝油 (HP+3)")
@@ -448,233 +388,371 @@ class Game:
 
         return actions
 
-    def display_action_options(self, character):
-        print(f"\n{'=' * 60}")
-        print(f"{character.name} 的回合".center(60))
-        print('=' * 60)
-        print(f"当前状态: HP {character.current_hp}/{character.max_hp}")
-
-        if character.control:
-            print(f"控制效果: {list(character.control.keys())}")
-        if character.imprints:
-            print(f"印记: {character.imprints}")
-        if character.accumulations:
-            print(f"积累: {character.accumulations}")
-        if isinstance(character, Knight) and hasattr(character, 'shield_charges'):
-            print(f"盾次数: {character.shield_charges}")
-
+    def get_action_context(self, character):
         actions = self.get_available_actions(character)
-
-        print("\n可用动作：")
-        available_actions = []
+        action_entries = []
         for i, action in enumerate(actions, 1):
             is_unavailable = any(
-                marker in action for marker in ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"])
-            if is_unavailable:
-                print(f"{i}. {action} [不可用]")
+                marker in action for marker in ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"]
+            )
+            action_entries.append({
+                "index": i,
+                "action": action,
+                "is_unavailable": is_unavailable,
+            })
+
+        return {
+            "character": character,
+            "name": character.name,
+            "current_hp": character.current_hp,
+            "max_hp": character.max_hp,
+            "controls": list(character.control.keys()),
+            "imprints": character.imprints.copy() if character.imprints else {},
+            "accumulations": character.accumulations.copy() if character.accumulations else {},
+            "shield_charges": character.shield_charges if isinstance(character, Knight) and hasattr(character, 'shield_charges') else None,
+            "actions": action_entries,
+        }
+
+    def get_action_targets(self, character, action):
+        if action.startswith("技能:"):
+            skill_name = action.replace("技能:", "").strip()
+
+            if skill_name in ["盾", "一锅油"]:
+                return {"requires_target": False, "targets": []}
+
+            targets = list(self.alive_characters)
+
+            if character.has_control("风阵"):
+                filtered_targets = [t for t in targets if t is character or not character.is_nearby(t)]
+                if not filtered_targets:
+                    return {"requires_target": True, "targets": [], "error": "受到风阵影响，且没有远程目标"}
+                targets = filtered_targets
+
+            if skill_name == "回旋斩":
+                targets = [t for t in targets if character.is_nearby(t)]
+                if not targets:
+                    return {"requires_target": False, "targets": [], "error": "回旋斩需要附近目标"}
+                return {"requires_target": False, "targets": targets}
+
+            if skill_name == "闪电劈":
+                targets = [t for t in targets if t.get_imprint("剑意") >= 3]
+                if not targets:
+                    return {"requires_target": True, "targets": [], "error": "闪电劈没有符合条件的目标"}
+
+            if skill_name == "无敌刺":
+                targets = [
+                    t for t in targets
+                    if t.has_control("lightning_strike")
+                    and id(t) not in character.invincible_strike_used
+                ]
+                if not targets:
+                    return {"requires_target": True, "targets": [], "error": "无敌刺没有符合条件的目标"}
+
+            if not targets:
+                return {"requires_target": True, "targets": [], "error": "没有可用目标"}
+
+            return {"requires_target": True, "targets": targets}
+
+        if action.startswith("行为:"):
+            behavior = action.replace("行为:", "").strip()
+            if behavior == "到你身边":
+                targets = [char for char in self.alive_characters if char != character]
+                if not targets:
+                    return {"requires_target": True, "targets": [], "error": "没有可靠近的目标"}
+                return {"requires_target": True, "targets": targets}
+            return {"requires_target": False, "targets": []}
+
+        return {"requires_target": False, "targets": []}
+
+    def execute_player_action(self, character, action, target: Optional[Character] = None) -> bool:
+        if action.startswith("技能:"):
+            skill_name = action.replace("技能:", "").strip()
+
+            if skill_name in ["盾", "一锅油"]:
+                self._execute_silently(character.use_skill, skill_name)
+                return True
+
+            target_info = self.get_action_targets(character, action)
+            if target_info.get("error"):
+                return False
+
+            targets = target_info.get("targets", [])
+            if not targets:
+                return False
+
+            if skill_name == "回旋斩":
+                return self._execute_silently(character.use_whirlwind_on_targets, targets)
+
+            if target is None or target not in targets:
+                return False
+
+            self._execute_silently(character.use_skill_on_target, skill_name, target)
+            return True
+
+        if action.startswith("行为:"):
+            behavior = action.replace("行为:", "").strip()
+
+            if behavior == "到你身边":
+                if target is None:
+                    return False
+                move_result = self.move_character_to_block(character, target.block_id)
+                return move_result["success"]
+
+            if behavior == "离你远点":
+                new_block_id = id(character) + self.round_count * 1000
+                move_result = self.move_character_to_block(character, new_block_id)
+                return move_result["success"]
+
+            if behavior.startswith("解控-"):
+                control_name = behavior.replace("解控-", "").strip()
+                if control_name in character.control:
+                    del character.control[control_name]
+                    return True
+                return False
+
+        if action == "[交互] 喝油 (HP+3)":
+            for char in self.alive_characters:
+                if isinstance(char, OilMaster) and char.oil_pot_count > 0:
+                    return self._execute_silently(char.drink_oil, character)
+            return False
+
+        return False
+
+    @staticmethod
+    def _execute_silently(func, *args, **kwargs):
+        with redirect_stdout(io.StringIO()):
+            return func(*args, **kwargs)
+
+    def get_dual_judgment_system(self) -> DualJudgmentSystem:
+        return self.dual_judgment_system
+
+    def get_continuous_effect_system(self) -> ContinuousEffectSystem:
+        return self.continuous_effect_system
+
+    def get_state_binding_system(self) -> StateBindingSystem:
+        return self.state_binding_system
+
+
+class Game(GameBackend):
+    """兼容旧测试与调用方式。"""
+
+
+class GameCLI:
+    def __init__(self, backend: GameBackend):
+        self.backend = backend
+
+    def display_battle_status(self, status_data):
+        print(f"\n{'=' * 60}")  # Target: All Players
+        print(f"第 {self.backend.round_count} 回合开始".center(60))  # Target: All Players
+        print('=' * 60)  # Target: All Players
+        for row in status_data:
+            status = "存活" if row["alive"] else "已摧毁"
+            print(f"{row['name']:10} [{status:4}] {row['hp_bar']} {row['current_hp']:2}/{row['max_hp']:2} HP")  # Target: All Players
+            if row["status_info"]:
+                print(f"           {' | '.join(row['status_info'])}")  # Target: All Players
+        print('=' * 60)  # Target: All Players
+
+    def choose_action(self, action_context):
+        print(f"\n{'=' * 60}")  # Target: Current Player
+        print(f"{action_context['name']} 的回合".center(60))  # Target: Current Player
+        print('=' * 60)  # Target: Current Player
+        print(f"当前状态: HP {action_context['current_hp']}/{action_context['max_hp']}")  # Target: Current Player
+
+        if action_context['controls']:
+            print(f"控制效果: {action_context['controls']}")  # Target: Current Player
+        if action_context['imprints']:
+            print(f"印记: {action_context['imprints']}")  # Target: Current Player
+        if action_context['accumulations']:
+            print(f"积累: {action_context['accumulations']}")  # Target: Current Player
+        if action_context['shield_charges'] is not None:
+            print(f"盾次数: {action_context['shield_charges']}")  # Target: Current Player
+
+        print("\n可用动作：")  # Target: Current Player
+        for entry in action_context['actions']:
+            if entry['is_unavailable']:
+                print(f"{entry['index']}. {entry['action']} [不可用]")  # Target: Current Player
             else:
-                print(f"{i}. {action}")
-                available_actions.append((i, action))
+                print(f"{entry['index']}. {entry['action']}")  # Target: Current Player
 
         while True:
             try:
                 choice = input("\n请输入动作编号: ").strip()
                 if choice.isdigit():
                     choice_num = int(choice)
-                    if 1 <= choice_num <= len(actions):
-                        selected_action = actions[choice_num - 1]
-                        is_unavailable = any(marker in selected_action for marker in
-                                             ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"])
-                        if is_unavailable:
-                            print("该动作当前无法使用！")
+                    if 1 <= choice_num <= len(action_context['actions']):
+                        selected = action_context['actions'][choice_num - 1]
+                        if selected['is_unavailable']:
+                            print("该动作当前无法使用！")  # Target: Current Player
                             continue
-                        return selected_action
-                    else:
-                        print(f"请输入1-{len(actions)}之间的数字！")
-                        continue
-                print("无效的输入，请重新选择！")
+                        return selected['action']
+                    print(f"请输入1-{len(action_context['actions'])}之间的数字！")  # Target: Current Player
+                    continue
+                print("无效的输入，请重新选择！")  # Target: Current Player
             except Exception as e:
-                print(f"输入错误：{e}，请重新输入！")
+                print(f"输入错误：{e}，请重新输入！")  # Target: Current Player
 
-    def execute_player_action(self, character, action) -> bool:
-        if action.startswith("技能:"):
-            skill_name = action.replace("技能:", "").strip()
+    def choose_target(self, actor, targets):
+        print("\n可用目标：")  # Target: Current Player
+        for i, target in enumerate(targets, 1):
+            info = f"{target.name} (HP: {target.current_hp}/{target.max_hp})"
+            if target.imprints:
+                info += f" 印记:{target.imprints}"
+            if target.control:
+                info += f" 控制:{list(target.control.keys())}"
+            nearby = "[近]" if actor.is_nearby(target) else "[远]"
+            print(f"{i}. {nearby} {info}")  # Target: Current Player
 
-            if skill_name in ["盾", "一锅油"]:
-                print(f"\n>>> {character.name} 使用技能 {skill_name}")
-                character.use_skill(skill_name)
-                return True
+        while True:
+            try:
+                target_choice = input("请选择目标编号: ").strip()
+                if target_choice.isdigit():
+                    target_num = int(target_choice)
+                    if 1 <= target_num <= len(targets):
+                        return targets[target_num - 1]
+                print(f"请输入1-{len(targets)}之间的数字！")  # Target: Current Player
+            except Exception as e:
+                print(f"输入错误：{e}，请重新输入！")  # Target: Current Player
 
-            targets = list(self.alive_characters)
+    def display_round_end(self, round_end):
+        print(f"\n{'=' * 60}")  # Target: All Players
+        print(f"第 {round_end['round_count']} 回合结束".center(60))  # Target: All Players
+        print('=' * 60)  # Target: All Players
+        for char in round_end['characters']:
+            if char['alive']:
+                print(f"{char['name']}: {char['hp_bar']} {char['current_hp']}/{char['max_hp']} HP")  # Target: All Players
+            else:
+                print(f"{char['name']}: [已摧毁]")  # Target: All Players
+        print('=' * 60)  # Target: All Players
 
-            # 风阵：仅禁止对近程目标使用技能（选择目标阶段过滤近目标）
-            if character.has_control("风阵"):
-                filtered_targets = [t for t in targets if t is character or not character.is_nearby(t)]
-                if not filtered_targets:
-                    print(f"{character.name} 受到风阵影响，无法对近程目标使用技能，且没有远程目标。")
-                    return False
-                targets = filtered_targets
+    def display_game_over(self, summary):
+        print("\n" + "=" * 60)  # Target: All Players
+        print("=== 游戏结束 ===")  # Target: All Players
+        print("=" * 60)  # Target: All Players
 
-            if skill_name == "回旋斩":
-                targets = [t for t in targets if character.is_nearby(t)]
-                if not targets:
-                    print(f"回旋斩需要附近的目标，但没有角色在附近！")
-                    return False
-                # 范围伤害：对同一块内所有其他角色
-                return character.use_whirlwind_on_targets(targets)
-            elif skill_name == "闪电劈":
-                targets = [t for t in targets if t.get_imprint("剑意") >= 3]
-                if not targets:
-                    print(f"闪电劈需要目标有3层剑意，但没有符合条件的目标！")
-                    return False
-            elif skill_name == "无敌刺":
-                targets = [
-                    t for t in targets
-                    if t.has_control("lightning_strike")
-                       and id(t) not in character.invincible_strike_used
-                ]
-                if not targets:
-                    print(f"无敌刺需要目标有闪电劈控制效果，但没有符合条件的目标！")
-                    return False
+        if summary["max_rounds_reached"]:
+            print("\n达到最大回合数限制！")  # Target: All Players
 
-            if not targets:
-                print(f"{character.name} 没有可用目标！")
-                return False
+        if summary["type"] == "winner":
+            print(f"\n>>> 获胜者: {summary['winner_name']}")  # Target: All Players
+            print(f"    剩余生命值: {summary['winner_hp']}/{summary['winner_max_hp']}")  # Target: All Players
+        elif summary["type"] == "all_destroyed":
+            print("\n所有角色同归于尽！")  # Target: All Players
+        else:
+            print("\n游戏平局！")  # Target: All Players
+            print(f"存活角色: {summary['alive_names']}")  # Target: All Players
 
-            print("\n可用目标：")
-            for i, target in enumerate(targets, 1):
-                info = f"{target.name} (HP: {target.current_hp}/{target.max_hp})"
-                if target.imprints:
-                    info += f" 印记:{target.imprints}"
-                if target.control:
-                    info += f" 控制:{list(target.control.keys())}"
-                nearby = "[近]" if character.is_nearby(target) else "[远]"
-                print(f"{i}. {nearby} {info}")
+        print(f"\n总回合数: {summary['round_count']}")  # Target: All Players
+        print("\n最终状态:")  # Target: All Players
+        for char in summary["final_status"]:
+            status = "存活" if char["alive"] else "已摧毁"
+            print(f"  {char['name']}: {char['current_hp']}/{char['max_hp']} HP [{status}]")  # Target: All Players
 
-            while True:
-                try:
-                    target_choice = input("请选择目标编号: ").strip()
-                    if target_choice.isdigit():
-                        target_num = int(target_choice)
-                        if 1 <= target_num <= len(targets):
-                            target = targets[target_num - 1]
-                            break
-                    print(f"请输入1-{len(targets)}之间的数字！")
-                except Exception as e:
-                    print(f"输入错误：{e}，请重新输入！")
+        print("=" * 60)  # Target: All Players
 
-            print(f"\n>>> {character.name} 使用技能 {skill_name} 对 {target.name}")
-            character.use_skill_on_target(skill_name, target)
-            return True
+    def run(self):
+        print("=" * 60)  # Target: All Players
+        print("欢迎来到角色战斗游戏！".center(60))  # Target: All Players
+        print("=" * 60)  # Target: All Players
+        print("\n参战角色:")  # Target: All Players
+        for char in self.backend.all_characters:
+            print(f"  - {char.name}: {char.max_hp} HP")  # Target: All Players
+        print("\n游戏规则:")  # Target: All Players
+        print("  1. 每回合通过石头剪刀布决定先手")  # Target: All Players
+        print("  2. 使用技能攻击对手或执行战术动作")  # Target: All Players
+        print("  3. 最后存活的角色获胜")  # Target: All Players
+        print("=" * 60)  # Target: All Players
 
-        elif action.startswith("行为:"):
-            behavior = action.replace("行为:", "").strip()
+        while not self.backend.is_game_over():
+            try:
+                round_data = self.backend.start_round()
+                self.display_battle_status(round_data["battle_status"])
+                for line in round_data["rps_logs"]:
+                    print(line)  # Target: All Players
 
-            if behavior == "到你身边":
-                targets = [char for char in self.alive_characters if char != character]
-                if not targets:
-                    print("没有可靠近的目标！")
-                    return False
+                winner = round_data["winner"]
+                if winner is None:
+                    print("没有角色可以行动！")  # Target: All Players
+                    self.display_round_end(self.backend.finish_round(None))
+                    time.sleep(self.backend.config.round_delay)
+                    continue
 
-                print("\n选择要靠近的角色：")
-                for i, target in enumerate(targets, 1):
-                    nearby = "[已靠近]" if character.is_nearby(target) else ""
-                    print(f"{i}. {target.name} {nearby}")
+                print(f"\n>>> {round_data['winner_message']}")  # Target: All Players
+                action_context = self.backend.get_action_context(winner)
+                action = self.choose_action(action_context)
 
-                while True:
-                    try:
-                        target_choice = input("请选择目标编号: ").strip()
-                        if target_choice.isdigit():
-                            target_num = int(target_choice)
-                            if 1 <= target_num <= len(targets):
-                                target = targets[target_num - 1]
-                                self.move_character_to_block(character, target.block_id)
-                                print(f">>> {character.name} 靠近了 {target.name}")
-                                return True
-                        print(f"请输入1-{len(targets)}之间的数字！")
-                    except Exception as e:
-                        print(f"输入错误：{e}")
-
-            elif behavior == "离你远点":
-                new_block_id = id(character) + self.round_count * 1000
-                self.move_character_to_block(character, new_block_id)
-                print(f">>> {character.name} 远离了所有角色！")
-                return True
-
-            elif behavior.startswith("解控-"):
-                control_name = behavior.replace("解控-", "").strip()
-                if control_name in character.control:
-                    del character.control[control_name]
-                    print(f">>> {character.name} 解除了 {control_name} 控制效果！")
-                    return True
+                target_info = self.backend.get_action_targets(winner, action)
+                if target_info.get("error"):
+                    print(f"\n[警告] {winner.name} 的动作未能成功执行（{target_info['error']}）")  # Target: All Players
+                    success = False
                 else:
-                    print(f"未找到控制效果：{control_name}")
-                    return False
+                    target = None
+                    if target_info.get("requires_target"):
+                        target = self.choose_target(winner, target_info.get("targets", []))
+                    success = self.backend.execute_player_action(winner, action, target)
 
-        elif action == "[交互] 喝油 (HP+3)":
-            for char in self.alive_characters:
-                if isinstance(char, OilMaster) and char.oil_pot_count > 0:
-                    char.drink_oil(character)
-                    return True
-            print("场上没有可用的油锅！")
-            return False
+                if not success:
+                    print(f"\n[警告] {winner.name} 的动作未能成功执行（废步）")  # Target: All Players
 
-        return False
+                self.display_round_end(self.backend.finish_round(winner))
+                time.sleep(self.backend.config.round_delay)
+            except KeyboardInterrupt:
+                print("\n\n游戏被中断！")  # Target: Current Player
+                choice = input("是否退出游戏？(y/n): ").strip().lower()
+                if choice == 'y':
+                    print("游戏已退出。")  # Target: Current Player
+                    return
+            except Exception as e:
+                print(f"\n发生错误: {e}")  # Target: Current Player
+                import traceback
+                traceback.print_exc()
+                choice = input("是否继续游戏？(y/n): ").strip().lower()
+                if choice != 'y':
+                    return
 
-    # ===== 新系统访问方法 =====
-    
-    def get_dual_judgment_system(self) -> DualJudgmentSystem:
-        """获取双人判定系统"""
-        return self.dual_judgment_system
-    
-    def get_continuous_effect_system(self) -> ContinuousEffectSystem:
-        """获取持续效果系统"""
-        return self.continuous_effect_system
-    
-    def get_state_binding_system(self) -> StateBindingSystem:
-        """获取状态绑定系统"""
-        return self.state_binding_system
+        self.display_game_over(self.backend.get_game_over_summary())
+        choice = input("\n是否重新开始游戏？(y/n): ").strip().lower()
+        if choice == 'y':
+            self.backend.reset_game()
+            self.run()
 
 
 def main():
     config = get_game_config()
 
-    print("=" * 60)
-    print("欢迎来到角色战斗游戏！".center(60))
-    print("=" * 60)
-    print("\n游戏模式选择：")
-    print("1. 自定义角色选择")
-    print(f"2. 使用默认角色（{', '.join(config.default_characters)}）")
+    print("=" * 60)  # Target: Current Player
+    print("欢迎来到角色战斗游戏！".center(60))  # Target: Current Player
+    print("=" * 60)  # Target: Current Player
+    print("\n游戏模式选择：")  # Target: Current Player
+    print("1. 自定义角色选择")  # Target: Current Player
+    print(f"2. 使用默认角色（{', '.join(config.default_characters)}）")  # Target: Current Player
 
     while True:
         try:
             choice = input("\n请选择游戏模式 (1-2): ").strip()
             if choice == "1":
-                # 自定义选择角色
                 characters = select_characters(
                     min_players=config.min_players,
                     max_players=config.max_players
                 )
                 break
-            elif choice == "2":
-                # 使用默认角色
+            if choice == "2":
                 characters = quick_select_default_characters()
                 break
-            else:
-                print("无效选择，请输入 1 或 2")
+            print("无效选择，请输入 1 或 2")  # Target: Current Player
         except KeyboardInterrupt:
-            print("\n\n游戏已退出。")
+            print("\n\n游戏已退出。")  # Target: Current Player
             return
         except Exception as e:
-            print(f"错误: {e}")
-            print("请重新选择")
+            print(f"错误: {e}")  # Target: Current Player
+            print("请重新选择")  # Target: Current Player
 
     if not characters:
-        print("没有选择角色，游戏退出。")
+        print("没有选择角色，游戏退出。")  # Target: Current Player
         return
 
-    game = Game(characters)
-    game.start()
+    backend = GameBackend(characters)
+    cli = GameCLI(backend)
+    cli.run()
 
 
 if __name__ == "__main__":
