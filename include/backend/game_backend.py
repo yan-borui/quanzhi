@@ -12,6 +12,8 @@ from characters.oil_master import OilMaster
 from characters.warlock import Warlock
 from characters.scythe_worker import ScytheWorker
 from characters.ninja import Ninja
+from characters.chicken_master import ChickenMaster
+from characters.scientist import Scientist
 
 # 导入配置系统
 from config.game_config import get_game_config
@@ -240,6 +242,13 @@ class GameBackend:
                 elif (not was_alive) and is_alive_now:
                     char.on_revive_event()
 
+        # 吃鸡大师复活检测：如果有待复活标记，执行复活
+        for char in self.all_characters:
+            if isinstance(char, ChickenMaster) and char.pending_revive:
+                if char.try_revive():
+                    if char not in self.alive_characters:
+                        self.alive_characters.append(char)
+
     def get_battle_status(self):
         status = []
         for char in self.all_characters:
@@ -252,6 +261,13 @@ class GameBackend:
                 status_info.append(f"积累:{char.accumulations}")
             if isinstance(char, Knight) and hasattr(char, "shield_charges"):
                 status_info.append(f"盾次数:{char.shield_charges}")
+            if isinstance(char, ChickenMaster):
+                status_info.append(f"空投:{char.airdrop_count}")
+            if isinstance(char, Scientist):
+                status_info.append(f"电池:{char.battery_count}")
+                status_info.append(f"机器人:{char.robot_count}")
+                if char.in_robot_mode:
+                    status_info.append("机器人模式")
             status.append(
                 {
                     "character": char,
@@ -494,6 +510,44 @@ class GameBackend:
                     actions.append(f"技能:{skill_name}(需隐身)")
                 continue
 
+            # --- 科学家特殊技能 ---
+            if isinstance(character, Scientist):
+                # 机器人模式下只能使用撸和机器人自爆
+                if character.in_robot_mode and skill_name not in ("撸", "机器人自爆"):
+                    actions.append(f"技能:{skill_name}(机器人模式不可用)")
+                    continue
+
+                if skill_name == "制造机器人":
+                    if character.battery_count >= 4:
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(
+                            f"技能:{skill_name}(电池不足:{character.battery_count}/4)"
+                        )
+                    continue
+
+                if skill_name == "撸":
+                    if character.robot_count >= 1:
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(无机器人)")
+                    continue
+
+                if skill_name == "机器人自爆":
+                    if character.robot_count >= 1:
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(无机器人)")
+                    continue
+
+            # --- 吃鸡大师：空投为自身技能 ---
+            if skill_name == "空投" and isinstance(character, ChickenMaster):
+                if skill.is_available():
+                    actions.append(f"技能:{skill_name}")
+                else:
+                    actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                continue
+
             if skill.is_available():
                 actions.append(f"技能:{skill_name}")
             else:
@@ -539,6 +593,9 @@ class GameBackend:
                     "(不可用)",
                     "(无铁索目标)",
                     "(需隐身)",
+                    "(电池不足:",
+                    "(无机器人)",
+                    "(机器人模式不可用)",
                 ]
             )
             action_entries.append(
@@ -672,6 +729,15 @@ class GameBackend:
                         "error": "挥镰没有可用目标",
                     }
 
+            # --- 吃鸡大师：空投和电池为自身技能 ---
+            if skill_name == "空投" and isinstance(character, ChickenMaster):
+                return {"requires_target": False, "targets": []}
+
+            # --- 科学家：电池和制造机器人为自身技能 ---
+            if isinstance(character, Scientist):
+                if skill_name in ("电池", "制造机器人"):
+                    return {"requires_target": False, "targets": []}
+
             # 隐身过滤：普通技能不能选中隐身目标（除非是自身技能）
             targets = [t for t in targets if t is character or t.is_targetable()]
 
@@ -710,6 +776,22 @@ class GameBackend:
                 return False
 
             targets = target_info.get("targets", [])
+
+            # --- 自身技能（无需目标和targets列表） ---
+            if not target_info.get("requires_target", True) and not targets:
+                # 吃鸡大师空投、科学家电池/制造机器人、忍者忍法地心
+                if skill_name == "空投" and isinstance(character, ChickenMaster):
+                    self._execute_silently(character.use_skill, skill_name)
+                    return True
+                if skill_name in ("电池", "制造机器人") and isinstance(
+                    character, Scientist
+                ):
+                    self._execute_silently(character.use_skill, skill_name)
+                    return True
+                if skill_name == "忍法地心" and isinstance(character, Ninja):
+                    self._execute_silently(character.use_skill, skill_name)
+                    return True
+
             if not targets:
                 return False
 
@@ -728,11 +810,6 @@ class GameBackend:
                 return self._execute_silently(
                     character.use_death_gate_on_targets, targets
                 )
-
-            # --- 忍者忍法地心（自身技能，无需目标） ---
-            if skill_name == "忍法地心" and isinstance(character, Ninja):
-                self._execute_silently(character.use_skill, skill_name)
-                return True
 
             if target is None or target not in targets:
                 return False

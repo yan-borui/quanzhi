@@ -15,6 +15,8 @@ from .oil_master import OilMaster
 from .target import Target
 from .mechanic import Mechanic
 from .disc_master import DiscMaster
+from .chicken_master import ChickenMaster
+from .scientist import Scientist
 
 __all__ = [
     "Knight",
@@ -28,4 +30,6 @@ __all__ = [
     "Target",
     "Mechanic",
     "DiscMaster",
+    "ChickenMaster",
+    "Scientist",
 ]

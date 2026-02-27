@@ -21,6 +21,8 @@ from characters.scythe_worker import ScytheWorker, SCYTHE_WORKER_STATS_DATA
 from characters.ninja import Ninja, NINJA_STATS_DATA
 from characters.mechanic import Mechanic, MECHANIC_STATS_DATA
 from characters.disc_master import DiscMaster, DISC_MASTER_STATS_DATA
+from characters.chicken_master import ChickenMaster, CHICKEN_MASTER_STATS_DATA
+from characters.scientist import Scientist, SCIENTIST_STATS_DATA
 
 
 def initialize_characters():
@@ -150,6 +152,24 @@ def initialize_characters():
         display_name=DISC_MASTER_STATS_DATA.get("name", "卖光盘的"),
         description=DISC_MASTER_STATS_DATA.get("description", ""),
         stats=DISC_MASTER_STATS_DATA,
+    )
+
+    # 注册吃鸡大师
+    register_character(
+        role_id="chicken_master",
+        character_class=ChickenMaster,
+        display_name=CHICKEN_MASTER_STATS_DATA.get("name", "吃鸡大师"),
+        description=CHICKEN_MASTER_STATS_DATA.get("description", ""),
+        stats=CHICKEN_MASTER_STATS_DATA,
+    )
+
+    # 注册科学家
+    register_character(
+        role_id="scientist",
+        character_class=Scientist,
+        display_name=SCIENTIST_STATS_DATA.get("name", "科学家"),
+        description=SCIENTIST_STATS_DATA.get("description", ""),
+        stats=SCIENTIST_STATS_DATA,
     )
 
 
