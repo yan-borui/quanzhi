@@ -9,6 +9,10 @@ from core.skill import Skill
 class Ranger(Character):
     def __init__(self, name: str = "游侠"):
         super().__init__(name, max_hp=60, control={}, stealth=0)
+        # 板砖连击追踪
+        self._brick_combo_target = None  # 上次板砖命中的目标
+        self._brick_combo_count = 0  # 连续命中同一目标的次数
+        self._brick_last_round = -1  # 上次使用板砖的回合数
         self._initialize_skills()
 
     def _initialize_skills(self):
@@ -40,7 +44,28 @@ class Ranger(Character):
     def _brick_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
             return False
-        damage = 6 if self.is_nearby(target) else 3
+
+        current_round = getattr(self, "current_round", 0)
+
+        # 判断是否为连续回合命中同一目标
+        if (
+            target is self._brick_combo_target
+            and current_round == self._brick_last_round + 1
+        ):
+            self._brick_combo_count += 1
+        else:
+            self._brick_combo_count = 1
+            self._brick_combo_target = target
+
+        self._brick_last_round = current_round
+
+        base_damage = 6 if self.is_nearby(target) else 3
+        bonus_damage = 3 * (self._brick_combo_count - 1)
+        damage = base_damage + bonus_damage
+
+        if self._brick_combo_count > 1:
+            print(f"板砖连击x{self._brick_combo_count}！伤害增加至{damage}")
+
         target.take_damage(self.apply_attack_buff(damage))
         return True
 
@@ -61,10 +86,10 @@ RANGER_SKILLS_DATA = {
     "板砖": {
         "name": "板砖",
         "cooldown": 0,
-        "damage": "远程3/近程6",
-        "effect": "无控制效果",
+        "damage": "远程3/近程6（连续命中同一目标每次+3）",
+        "effect": "连续回合命中同一目标时伤害递增，每次+3",
         "range": "远程/近程",
-        "common": True
+        "common": True,
     },
     "纱袋": {
         "name": "纱袋",
@@ -72,8 +97,8 @@ RANGER_SKILLS_DATA = {
         "damage": 0,
         "effect": "控制（不可叠）+ 强制位移至游侠所在地块",
         "range": "任意",
-        "common": False
-    }
+        "common": False,
+    },
 }
 
 RANGER_STATS_DATA = {
@@ -82,5 +107,5 @@ RANGER_STATS_DATA = {
     "control": {},
     "stealth": 0,
     "role_type": "远程/近程灵活输出",
-    "description": "以板砖和控制技能牵制敌人的游侠"
+    "description": "以板砖和控制技能牵制敌人的游侠",
 }

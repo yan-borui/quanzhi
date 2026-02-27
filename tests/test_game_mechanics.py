@@ -6,7 +6,13 @@ test_game_mechanics.py - 游戏机制更新测试
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "include"))
+
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "include"
+    ),
+)
 
 from characters.healer import Healer
 from characters.summoner import Summoner
@@ -15,8 +21,8 @@ from characters.oil_master import OilMaster
 from core.player import Player
 from main import Game
 
-
 # ========== 治疗师 (Healer) 测试 ==========
+
 
 class TestHealerDamageReduction:
     """治疗师自我治疗减伤状态测试"""
@@ -164,14 +170,15 @@ class TestHealerShield:
 
 # ========== 召唤师 (Summoner) 测试 ==========
 
+
 class TestSummonerWolf:
     """召唤师狼技能重构测试"""
 
     def test_wolf_self_accumulates(self):
-        """目标为自己时积累+1"""
+        """目标为自己时积累+2"""
         summoner = Summoner()
         summoner.use_skill_on_target("狼", summoner)
-        assert summoner.get_accumulation("狼") == 1
+        assert summoner.get_accumulation("狼") == 2
 
     def test_wolf_other_applies_vulnerability(self):
         """目标为他人时施加易伤状态"""
@@ -180,11 +187,12 @@ class TestSummonerWolf:
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("易伤") == 20
 
-    def test_wolf_other_no_attack_buff(self):
-        """目标为他人时不施加攻击强化（攻击强化由熊提供）"""
+    def test_wolf_other_accumulates_one(self):
+        """目标为他人时狼积累+1"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("狼", target)
+        assert summoner.get_accumulation("狼") == 1
         assert target.get_accumulation("攻击强化") == 0
 
     def test_wolf_vulnerability_stacks_linearly(self):
@@ -198,14 +206,15 @@ class TestSummonerWolf:
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("易伤") == 60
 
-    def test_wolf_no_attack_buff_stacks(self):
-        """狼不施加攻击强化"""
+    def test_wolf_other_no_attack_buff_stacks(self):
+        """狼对他人不施加攻击强化，但积累狼"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("狼", target)
         summoner.get_skill("狼").set_cooldown(0)
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("攻击强化") == 0
+        assert summoner.get_accumulation("狼") == 2
 
     def test_wolf_self_no_vulnerability(self):
         """目标为自己时不施加易伤"""
@@ -259,6 +268,7 @@ class TestAttackBuffMechanic:
     def test_attack_buff_increases_damage(self):
         """攻击强化增加造成的伤害"""
         from characters.target import Target
+
         attacker = Target("攻击者")
         attacker.add_accumulation("攻击强化", 6)
         target = Player("目标", 60)
@@ -269,6 +279,7 @@ class TestAttackBuffMechanic:
     def test_attack_buff_consumed_after_attack(self):
         """攻击强化在攻击后被消耗"""
         from characters.target import Target
+
         attacker = Target("攻击者")
         attacker.add_accumulation("攻击强化", 6)
         target = Player("目标", 60)
@@ -278,6 +289,7 @@ class TestAttackBuffMechanic:
     def test_attack_buff_stacked_increases_more(self):
         """叠加的攻击强化提供更高伤害增加"""
         from characters.target import Target
+
         attacker = Target("攻击者")
         attacker.add_accumulation("攻击强化", 12)
         target = Player("目标", 60)
@@ -288,6 +300,7 @@ class TestAttackBuffMechanic:
     def test_no_attack_buff_normal_damage(self):
         """没有攻击强化时造成正常伤害"""
         from characters.target import Target
+
         attacker = Target("攻击者")
         target = Player("目标", 60)
         attacker.use_skill_on_target("平A", target)
@@ -295,6 +308,7 @@ class TestAttackBuffMechanic:
 
 
 # ========== 游侠 (Ranger) 测试 ==========
+
 
 class TestRangerSandbag:
     """游侠纱袋技能位移测试"""
@@ -326,6 +340,7 @@ class TestRangerSandbag:
 
 
 # ========== 卖油翁 (Oil Master) 测试 ==========
+
 
 class TestOilMasterPot:
     """卖油翁一锅油技能与喝油交互测试"""
@@ -477,26 +492,27 @@ class TestSummonerTargetSelection:
     """召唤师技能目标选择测试"""
 
     def test_wolf_on_other_target(self):
-        """狼技能可指定他人为目标，施加易伤但不施加攻击强化"""
+        """狼技能可指定他人为目标，积累+1狼并施加易伤但不施加攻击强化"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("狼", target)
         assert target.get_accumulation("易伤") == 20
         assert target.get_accumulation("攻击强化") == 0
+        assert summoner.get_accumulation("狼") == 1
 
     def test_bear_on_self(self):
-        """熊技能对自己使用时积累+1"""
+        """熊技能对自己使用时积累+2"""
         summoner = Summoner()
         summoner.use_skill_on_target("熊", summoner)
-        assert summoner.get_accumulation("熊") == 1
+        assert summoner.get_accumulation("熊") == 2
 
     def test_bear_on_other_applies_attack_buff(self):
-        """熊技能对他人使用时施加攻击强化"""
+        """熊技能对他人使用时积累+1熊并施加攻击强化"""
         summoner = Summoner()
         target = Player("目标", 60)
         summoner.use_skill_on_target("熊", target)
         assert target.get_accumulation("攻击强化") == 6
-        assert summoner.get_accumulation("熊") == 0
+        assert summoner.get_accumulation("熊") == 1
 
 
 class TestDrinkOilGameAction:

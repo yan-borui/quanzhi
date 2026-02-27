@@ -9,11 +9,14 @@ from characters.knight import Knight
 from characters.summoner import Summoner
 from characters.swordsman import Swordsman
 from characters.oil_master import OilMaster
+
 # 导入配置系统
 from config.game_config import get_game_config
+
 # 导入角色初始化以注册所有角色
 import factory.character_init
 from factory.character_selection import quick_select_default_characters
+
 # 导入新系统
 from systems.dual_judgment import DualJudgmentSystem
 from systems.continuous_effect import ContinuousEffectSystem
@@ -64,7 +67,10 @@ class GameBackend:
 
     def is_game_over(self):
         self.update_alive_characters()
-        return len(self.alive_characters) <= 1 or self.round_count >= self.config.max_rounds
+        return (
+            len(self.alive_characters) <= 1
+            or self.round_count >= self.config.max_rounds
+        )
 
     def get_game_over_summary(self):
         self.update_alive_characters()
@@ -81,7 +87,7 @@ class GameBackend:
         else:
             result = {
                 "type": "draw",
-                "alive_names": [char.name for char in self.alive_characters]
+                "alive_names": [char.name for char in self.alive_characters],
             }
 
         result["round_count"] = self.round_count
@@ -108,7 +114,7 @@ class GameBackend:
                 char.start_new_turn_log()
 
         for char in self.all_characters:
-            if hasattr(char, 'on_turn_start'):
+            if hasattr(char, "on_turn_start"):
                 char.on_turn_start()
 
         self.reduce_all_cooldowns()
@@ -119,16 +125,22 @@ class GameBackend:
             "battle_status": self.get_battle_status(),
             "winner": rps_result["winner"],
             "rps_logs": rps_result["logs"],
-            "winner_message": None if rps_result["winner"] is None else f"本回合由 {rps_result['winner'].name} 先手！"
+            "winner_message": (
+                None
+                if rps_result["winner"] is None
+                else f"本回合由 {rps_result['winner'].name} 先手！"
+            ),
         }
 
     def finish_round(self, winner: Optional[Character]):
         for char in self.all_characters:
             if isinstance(char, Knight):
-                if (char.death_shield_window_active
-                        and not char.is_alive()
-                        and char.death_shield_window_round == self.round_count
-                        and winner is not char):
+                if (
+                    char.death_shield_window_active
+                    and not char.is_alive()
+                    and char.death_shield_window_round == self.round_count
+                    and winner is not char
+                ):
                     char.expire_death_shield_window()
 
         self.update_alive_characters()
@@ -146,7 +158,7 @@ class GameBackend:
                     "hp_bar": self.get_hp_bar(char, 15) if char.is_alive() else None,
                 }
                 for char in self.all_characters
-            ]
+            ],
         }
 
     def move_character_to_block(self, character: Character, target_block_id: int):
@@ -154,7 +166,11 @@ class GameBackend:
         if old_block_id == target_block_id:
             return {"success": False, "message": f"{character.name} 已经在目标位置"}
 
-        old_block_chars = [c for c in self.all_characters if c.block_id == old_block_id and c != character]
+        old_block_chars = [
+            c
+            for c in self.all_characters
+            if c.block_id == old_block_id and c != character
+        ]
         for other_char in old_block_chars:
             if character in other_char.nearby_characters:
                 other_char.nearby_characters.remove(character)
@@ -164,7 +180,10 @@ class GameBackend:
 
         self.continuous_effect_system.check_and_remove_on_event(character, "movement")
 
-        return {"success": True, "message": f"{character.name} 移动到块 {target_block_id}"}
+        return {
+            "success": True,
+            "message": f"{character.name} 移动到块 {target_block_id}",
+        }
 
     def rebuild_all_nearby_lists(self):
         blocks = {}
@@ -195,7 +214,9 @@ class GameBackend:
 
     def update_alive_characters(self):
         prev_alive = set(self.alive_characters)
-        self.alive_characters = [char for char in self.all_characters if char.is_alive()]
+        self.alive_characters = [
+            char for char in self.all_characters if char.is_alive()
+        ]
 
         for char in self.all_characters:
             if isinstance(char, Knight):
@@ -216,25 +237,27 @@ class GameBackend:
                 status_info.append(f"印记:{char.imprints}")
             if char.accumulations:
                 status_info.append(f"积累:{char.accumulations}")
-            if isinstance(char, Knight) and hasattr(char, 'shield_charges'):
+            if isinstance(char, Knight) and hasattr(char, "shield_charges"):
                 status_info.append(f"盾次数:{char.shield_charges}")
-            status.append({
-                "character": char,
-                "name": char.name,
-                "alive": char.is_alive(),
-                "current_hp": char.current_hp,
-                "max_hp": char.max_hp,
-                "hp_bar": self.get_hp_bar(char),
-                "status_info": status_info,
-            })
+            status.append(
+                {
+                    "character": char,
+                    "name": char.name,
+                    "alive": char.is_alive(),
+                    "current_hp": char.current_hp,
+                    "max_hp": char.max_hp,
+                    "hp_bar": self.get_hp_bar(char),
+                    "status_info": status_info,
+                }
+            )
         return status
 
     def get_hp_bar(self, character: Character, bar_length: int = 20) -> str:
         if character.max_hp == 0:
-            return '[' + ' ' * bar_length + ']'
+            return "[" + " " * bar_length + "]"
         filled_length = int(bar_length * character.current_hp / character.max_hp)
-        bar = '=' * filled_length + '-' * (bar_length - filled_length)
-        return f'[{bar}]'
+        bar = "=" * filled_length + "-" * (bar_length - filled_length)
+        return f"[{bar}]"
 
     def reduce_all_cooldowns(self):
         for char in self.all_characters:
@@ -245,7 +268,11 @@ class GameBackend:
         logs = ["=== 石头剪刀布环节 ==="]
 
         for char in self.all_characters:
-            if not char.is_alive() and isinstance(char, Knight) and char.can_use_shield():
+            if (
+                not char.is_alive()
+                and isinstance(char, Knight)
+                and char.can_use_shield()
+            ):
                 if char not in participants:
                     participants.append(char)
                     logs.append(f"{char.name} 虽已阵亡，但仍有盾技能可用，参与本回合！")
@@ -257,7 +284,7 @@ class GameBackend:
         return {"winner": winner, "logs": logs}
 
     def _resolve_rps_winner(self, participants, logs):
-        choices = ['石头', '剪刀', '布']
+        choices = ["石头", "剪刀", "布"]
         player_choices = {}
 
         for char in participants:
@@ -276,14 +303,16 @@ class GameBackend:
             return self._resolve_rps_winner(participants, logs)
 
         winning_choice = None
-        if '石头' in unique_choices and '剪刀' in unique_choices:
-            winning_choice = '石头'
-        elif '剪刀' in unique_choices and '布' in unique_choices:
-            winning_choice = '剪刀'
-        elif '布' in unique_choices and '石头' in unique_choices:
-            winning_choice = '布'
+        if "石头" in unique_choices and "剪刀" in unique_choices:
+            winning_choice = "石头"
+        elif "剪刀" in unique_choices and "布" in unique_choices:
+            winning_choice = "剪刀"
+        elif "布" in unique_choices and "石头" in unique_choices:
+            winning_choice = "布"
 
-        winners = [char for char, choice in player_choices.items() if choice == winning_choice]
+        winners = [
+            char for char, choice in player_choices.items() if choice == winning_choice
+        ]
 
         if len(winners) == 1:
             winner = winners[0]
@@ -295,14 +324,18 @@ class GameBackend:
 
     def get_available_actions(self, character):
         actions = []
-        active_controls = [k for k in character.control.keys() if k not in HARMLESS_CONTROLS]
+        active_controls = [
+            k for k in character.control.keys() if k not in HARMLESS_CONTROLS
+        ]
 
         if active_controls:
             if isinstance(character, Knight) and character.can_use_shield():
                 actions.append("技能:盾")
             for control_name in active_controls:
                 actions.append(f"行为:解控-{control_name}")
-            harmless_to_clear = HARMLESS_CONTROLS.intersection(character.control.keys()) - set(active_controls)
+            harmless_to_clear = HARMLESS_CONTROLS.intersection(
+                character.control.keys()
+            ) - set(active_controls)
             for control_name in harmless_to_clear:
                 actions.append(f"行为:解控-{control_name}")
             return actions
@@ -328,13 +361,15 @@ class GameBackend:
             if skill_name == "齐攻" and isinstance(character, Summoner):
                 wolf_accum = character.get_accumulation("狼")
                 bear_accum = character.get_accumulation("熊")
-                if wolf_accum >= 4 or bear_accum >= 4:
+                if wolf_accum >= 6 or bear_accum >= 6:
                     if skill.is_available():
                         actions.append(f"技能:{skill_name}")
                     else:
                         actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
                 else:
-                    actions.append(f"技能:{skill_name}(积累不足:狼{wolf_accum}/熊{bear_accum})")
+                    actions.append(
+                        f"技能:{skill_name}(积累不足:狼{wolf_accum}/熊{bear_accum})"
+                    )
                 continue
 
             if skill_name == "闪电劈" and isinstance(character, Swordsman):
@@ -354,10 +389,11 @@ class GameBackend:
 
             if skill_name == "无敌刺" and isinstance(character, Swordsman):
                 valid_targets = [
-                    char for char in self.alive_characters
+                    char
+                    for char in self.alive_characters
                     if char != character
-                       and char.has_control("lightning_strike")
-                       and id(char) not in character.invincible_strike_used
+                    and char.has_control("lightning_strike")
+                    and id(char) not in character.invincible_strike_used
                 ]
                 if valid_targets:
                     if skill.is_available():
@@ -392,13 +428,24 @@ class GameBackend:
         action_entries = []
         for i, action in enumerate(actions, 1):
             is_unavailable = any(
-                marker in action for marker in ["(CD:", "(无次数)", "(条件不足)", "(历史不足)", "(上上回合有控制)", "(积累不足:", "(无有效目标)"]
+                marker in action
+                for marker in [
+                    "(CD:",
+                    "(无次数)",
+                    "(条件不足)",
+                    "(历史不足)",
+                    "(上上回合有控制)",
+                    "(积累不足:",
+                    "(无有效目标)",
+                ]
             )
-            action_entries.append({
-                "index": i,
-                "action": action,
-                "is_unavailable": is_unavailable,
-            })
+            action_entries.append(
+                {
+                    "index": i,
+                    "action": action,
+                    "is_unavailable": is_unavailable,
+                }
+            )
 
         return {
             "character": character,
@@ -407,8 +454,15 @@ class GameBackend:
             "max_hp": character.max_hp,
             "controls": list(character.control.keys()),
             "imprints": character.imprints.copy() if character.imprints else {},
-            "accumulations": character.accumulations.copy() if character.accumulations else {},
-            "shield_charges": character.shield_charges if isinstance(character, Knight) and hasattr(character, 'shield_charges') else None,
+            "accumulations": (
+                character.accumulations.copy() if character.accumulations else {}
+            ),
+            "shield_charges": (
+                character.shield_charges
+                if isinstance(character, Knight)
+                and hasattr(character, "shield_charges")
+                else None
+            ),
             "actions": action_entries,
         }
 
@@ -422,30 +476,49 @@ class GameBackend:
             targets = list(self.alive_characters)
 
             if character.has_control("风阵"):
-                filtered_targets = [t for t in targets if t is character or not character.is_nearby(t)]
+                filtered_targets = [
+                    t for t in targets if t is character or not character.is_nearby(t)
+                ]
                 if not filtered_targets:
-                    return {"requires_target": True, "targets": [], "error": "受到风阵影响，且没有远程目标"}
+                    return {
+                        "requires_target": True,
+                        "targets": [],
+                        "error": "受到风阵影响，且没有远程目标",
+                    }
                 targets = filtered_targets
 
             if skill_name == "回旋斩":
                 targets = [t for t in targets if character.is_nearby(t)]
                 if not targets:
-                    return {"requires_target": False, "targets": [], "error": "回旋斩需要附近目标"}
+                    return {
+                        "requires_target": False,
+                        "targets": [],
+                        "error": "回旋斩需要附近目标",
+                    }
                 return {"requires_target": False, "targets": targets}
 
             if skill_name == "闪电劈":
                 targets = [t for t in targets if t.get_imprint("剑意") >= 3]
                 if not targets:
-                    return {"requires_target": True, "targets": [], "error": "闪电劈没有符合条件的目标"}
+                    return {
+                        "requires_target": True,
+                        "targets": [],
+                        "error": "闪电劈没有符合条件的目标",
+                    }
 
             if skill_name == "无敌刺":
                 targets = [
-                    t for t in targets
+                    t
+                    for t in targets
                     if t.has_control("lightning_strike")
                     and id(t) not in character.invincible_strike_used
                 ]
                 if not targets:
-                    return {"requires_target": True, "targets": [], "error": "无敌刺没有符合条件的目标"}
+                    return {
+                        "requires_target": True,
+                        "targets": [],
+                        "error": "无敌刺没有符合条件的目标",
+                    }
 
             if not targets:
                 return {"requires_target": True, "targets": [], "error": "没有可用目标"}
@@ -457,13 +530,19 @@ class GameBackend:
             if behavior == "到你身边":
                 targets = [char for char in self.alive_characters if char != character]
                 if not targets:
-                    return {"requires_target": True, "targets": [], "error": "没有可靠近的目标"}
+                    return {
+                        "requires_target": True,
+                        "targets": [],
+                        "error": "没有可靠近的目标",
+                    }
                 return {"requires_target": True, "targets": targets}
             return {"requires_target": False, "targets": []}
 
         return {"requires_target": False, "targets": []}
 
-    def execute_player_action(self, character, action, target: Optional[Character] = None) -> bool:
+    def execute_player_action(
+        self, character, action, target: Optional[Character] = None
+    ) -> bool:
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
 
@@ -480,7 +559,9 @@ class GameBackend:
                 return False
 
             if skill_name == "回旋斩":
-                return self._execute_silently(character.use_whirlwind_on_targets, targets)
+                return self._execute_silently(
+                    character.use_whirlwind_on_targets, targets
+                )
 
             if target is None or target not in targets:
                 return False

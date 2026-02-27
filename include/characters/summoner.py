@@ -41,8 +41,10 @@ class Summoner(Character):
         if skill_name == "齐攻":
             wolf_accumulation = self.get_accumulation("狼")
             bear_accumulation = self.get_accumulation("熊")
-            if wolf_accumulation < 4 and bear_accumulation < 4:
-                print(f"齐攻需要至少4只狼或4只熊的积累！当前狼:{wolf_accumulation}, 熊:{bear_accumulation}")
+            if wolf_accumulation < 6 and bear_accumulation < 6:
+                print(
+                    f"齐攻需要至少6只狼或6只熊的积累！当前狼:{wolf_accumulation}, 熊:{bear_accumulation}"
+                )
                 return
 
         success = skill.execute_with_target(self, target)
@@ -54,15 +56,21 @@ class Summoner(Character):
             return False
 
         if target is self:
-            # 情况A：目标为自己，积累层数+1
-            self.add_accumulation("狼", 1)
-            print(f"{self.name} 召唤了一只狼，当前狼积累: {self.get_accumulation('狼')}")
+            # 情况A：目标为自己，积累层数+2
+            self.add_accumulation("狼", 2)
+            print(f"{self.name} 召唤了狼群，当前狼积累: {self.get_accumulation('狼')}")
         else:
-            # 对他人使用：施加易伤
+            # 对他人使用：积累层数+1，并施加易伤
+            self.add_accumulation("狼", 1)
+            print(
+                f"{self.name} 召唤了一只狼，当前狼积累: {self.get_accumulation('狼')}"
+            )
             # 情况B：施加易伤状态（下一回合受到的伤害增加20%，可叠加）
             current_vulnerability = target.get_accumulation("易伤")
             target.add_accumulation("易伤", 20)
-            print(f"{target.get_name()} 被施加了易伤状态，下回合受到伤害增加 {current_vulnerability + 20}%")
+            print(
+                f"{target.get_name()} 被施加了易伤状态，下回合受到伤害增加 {current_vulnerability + 20}%"
+            )
 
         return True
 
@@ -71,31 +79,39 @@ class Summoner(Character):
             return False
 
         if target is self:
-            # 情况A：目标为自己，积累层数+1
-            self.add_accumulation("熊", 1)
-            print(f"{self.name} 召唤了一只熊，当前熊积累: {self.get_accumulation('熊')}")
+            # 情况A：目标为自己，积累层数+2
+            self.add_accumulation("熊", 2)
+            print(f"{self.name} 召唤了熊群，当前熊积累: {self.get_accumulation('熊')}")
 
         else:
-            # 对他人使用：施加攻击强化
+            # 对他人使用：积累层数+1，并施加攻击强化
+            self.add_accumulation("熊", 1)
+            print(
+                f"{self.name} 召唤了一只熊，当前熊积累: {self.get_accumulation('熊')}"
+            )
             # 情况C：施加攻击强化状态（下一次造成伤害+6，可叠加）
             target.add_accumulation("攻击强化", 6)
-            print(f"{target.get_name()} 获得了攻击强化，下次造成伤害 +{target.get_accumulation('攻击强化')}")
+            print(
+                f"{target.get_name()} 获得了攻击强化，下次造成伤害 +{target.get_accumulation('攻击强化')}"
+            )
 
         return True
 
-    def _coordinated_attack_effect(self, caster: Character, target: Optional[Character]) -> bool:
+    def _coordinated_attack_effect(
+        self, caster: Character, target: Optional[Character]
+    ) -> bool:
         if not target:
             return False
 
         wolf_accumulation = self.get_accumulation("狼")
         bear_accumulation = self.get_accumulation("熊")
 
-        if wolf_accumulation >= 4:
-            self.reduce_accumulation("狼", 4)
-            print(f"{self.name} 消耗了4只狼发动齐攻！")
-        elif bear_accumulation >= 4:
-            self.reduce_accumulation("熊", 4)
-            print(f"{self.name} 消耗了4只熊发动齐攻！")
+        if wolf_accumulation >= 6:
+            self.reduce_accumulation("狼", 6)
+            print(f"{self.name} 消耗了6只狼发动齐攻！")
+        elif bear_accumulation >= 6:
+            self.reduce_accumulation("熊", 6)
+            print(f"{self.name} 消耗了6只熊发动齐攻！")
         else:
             print(f"齐攻失败：没有足够的狼或熊积累")
             return False
@@ -103,7 +119,9 @@ class Summoner(Character):
         target.take_damage(self.apply_attack_buff(30))
         return True
 
-    def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
+    def on_behavior_change(
+        self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
+    ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
             print(f"{self.name} 指挥召唤物向前推进！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
@@ -121,27 +139,27 @@ SUMMONER_SKILLS_DATA = {
         "name": "狼",
         "cooldown": 0,
         "damage": 0,
-        "effect": "自己：+1狼积累；他人：施加易伤（+20%受伤，可叠加）和攻击强化（+6伤害，可叠加）",
+        "effect": "自己：+2狼积累；他人：+1狼积累，并施加易伤（+20%受伤，可叠加）",
         "range": "自身/任意目标",
-        "description": "召唤狼魂，对自己积累狼群数量，对他人施加易伤和攻击强化"
+        "description": "召唤狼魂，对自己积累2只狼，对他人积累1只狼并施加易伤",
     },
     "熊": {
         "name": "熊",
         "cooldown": 0,
         "damage": 0,
-        "effect": "增加1层熊积累",
-        "range": "自身",
-        "description": "召唤熊魂，积累熊群数量"
+        "effect": "自己：+2熊积累；他人：+1熊积累，并施加攻击强化（+6伤害，可叠加）",
+        "range": "自身/任意目标",
+        "description": "召唤熊魂，对自己积累2只熊，对他人积累1只熊并施加攻击强化",
     },
     "齐攻": {
         "name": "齐攻",
         "cooldown": 0,
         "damage": 30,
-        "effect": "消耗4只狼或4只熊发动强力攻击",
-        "requirement": "需要至少4层狼积累或4层熊积累",
+        "effect": "消耗6只狼或6只熊发动强力攻击",
+        "requirement": "需要至少6层狼积累或6层熊积累",
         "range": "任意敌方目标",
-        "description": "指挥召唤物群体攻击，造成巨额伤害"
-    }
+        "description": "指挥召唤物群体攻击，造成巨额伤害",
+    },
 }
 
 SUMMONER_STATS_DATA = {
@@ -150,5 +168,5 @@ SUMMONER_STATS_DATA = {
     "control": {},
     "stealth": 0,
     "role_type": "召唤系输出",
-    "description": "通过积累召唤物数量来发动强力攻击的战术型角色"
+    "description": "通过积累召唤物数量来发动强力攻击的战术型角色",
 }
