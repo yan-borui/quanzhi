@@ -7,3 +7,4 @@ class BehaviorType(Enum):
     MOVE_CLOSE = "到你身边"
     MOVE_AWAY = "离你远点"
     REMOVE_CONTROL = "解控"
+    SEARCH = "搜索"  # 搜索隐身角色（忍者忍法地心）

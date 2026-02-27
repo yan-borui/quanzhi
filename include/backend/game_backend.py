@@ -9,6 +9,9 @@ from characters.knight import Knight
 from characters.summoner import Summoner
 from characters.swordsman import Swordsman
 from characters.oil_master import OilMaster
+from characters.warlock import Warlock
+from characters.scythe_worker import ScytheWorker
+from characters.ninja import Ninja
 
 # 导入配置系统
 from config.game_config import get_game_config
@@ -42,6 +45,15 @@ class GameBackend:
 
         self.initialize_block_system()
 
+    def _inject_systems_to_characters(self):
+        """将系统级实例注入需要它们的角色"""
+        for char in self.all_characters:
+            if isinstance(char, ScytheWorker):
+                char.set_state_binding_system(self.state_binding_system)
+            if isinstance(char, Ninja):
+                char.set_state_binding_system(self.state_binding_system)
+                char.set_dual_judgment_system(self.dual_judgment_system)
+
     def initialize_block_system(self):
         for char in self.all_characters:
             char.block_id = id(char)
@@ -62,6 +74,7 @@ class GameBackend:
         self.continuous_effect_system = ContinuousEffectSystem()
         self.state_binding_system = StateBindingSystem()
 
+        self._inject_systems_to_characters()
         self.initialize_block_system()
         return {"reset": True}
 
@@ -404,6 +417,83 @@ class GameBackend:
                     actions.append(f"技能:{skill_name}(无有效目标)")
                 continue
 
+            # --- 术士特殊技能 ---
+            if skill_name == "爆炸" and isinstance(character, Warlock):
+                explosion_targets = [
+                    c
+                    for c in self.alive_characters
+                    if c != character and c.is_targetable()
+                ]
+                if explosion_targets:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无有效目标)")
+                continue
+
+            if skill_name == "死亡之门" and isinstance(character, Warlock):
+                gate_targets = [
+                    c
+                    for c in self.alive_characters
+                    if c != character and c.is_targetable()
+                ]
+                if gate_targets:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无有效目标)")
+                continue
+
+            # --- 镰刀工特殊技能 ---
+            if skill_name == "挥镰" and isinstance(character, ScytheWorker):
+                swing_targets = [
+                    c
+                    for c in self.alive_characters
+                    if c != character
+                    and c.is_targetable()
+                    and id(c) not in character._swing_controlled_targets
+                ]
+                if swing_targets:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无有效目标)")
+                continue
+
+            # --- 忍者特殊技能 ---
+            if skill_name == "摔" and isinstance(character, Ninja):
+                bound_target = character.state_binding_system.get_bound_target(
+                    character, "铁索覆身"
+                )
+                if (
+                    bound_target
+                    and bound_target.has_control("铁索覆身")
+                    and bound_target.is_alive()
+                ):
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无铁索目标)")
+                continue
+
+            if skill_name == "偷袭" and isinstance(character, Ninja):
+                if character.in_stealth:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(需隐身)")
+                continue
+
             if skill.is_available():
                 actions.append(f"技能:{skill_name}")
             else:
@@ -415,6 +505,15 @@ class GameBackend:
         for control_name in character.control.keys():
             if control_name in HARMLESS_CONTROLS:
                 actions.append(f"行为:解控-{control_name}")
+
+        # 搜索隐身角色（忍者忍法地心）
+        stealthed_chars = [
+            c
+            for c in self.alive_characters
+            if c != character and isinstance(c, Ninja) and c.in_stealth
+        ]
+        for ninja_char in stealthed_chars:
+            actions.append(f"行为:搜索-{ninja_char.name}")
 
         for char in self.alive_characters:
             if isinstance(char, OilMaster) and char.oil_pot_count > 0:
@@ -437,6 +536,9 @@ class GameBackend:
                     "(上上回合有控制)",
                     "(积累不足:",
                     "(无有效目标)",
+                    "(不可用)",
+                    "(无铁索目标)",
+                    "(需隐身)",
                 ]
             )
             action_entries.append(
@@ -520,6 +622,59 @@ class GameBackend:
                         "error": "无敌刺没有符合条件的目标",
                     }
 
+            # --- 术士：爆炸（多目标）和死亡之门（多目标）不需要选单个目标 ---
+            if skill_name == "爆炸" and isinstance(character, Warlock):
+                explosion_targets = [
+                    t for t in targets if t != character and t.is_targetable()
+                ]
+                return {"requires_target": False, "targets": explosion_targets}
+
+            if skill_name == "死亡之门" and isinstance(character, Warlock):
+                gate_targets = [
+                    t for t in targets if t != character and t.is_targetable()
+                ]
+                return {"requires_target": False, "targets": gate_targets}
+
+            # --- 镰刀工：忍法地心自身技能 ---
+            if skill_name == "忍法地心" and isinstance(character, Ninja):
+                return {"requires_target": False, "targets": []}
+
+            # --- 忍者：摔只能对铁索覆身目标使用 ---
+            if skill_name == "摔" and isinstance(character, Ninja):
+                bound_target = character.state_binding_system.get_bound_target(
+                    character, "铁索覆身"
+                )
+                if (
+                    bound_target
+                    and bound_target.has_control("铁索覆身")
+                    and bound_target.is_alive()
+                ):
+                    return {"requires_target": True, "targets": [bound_target]}
+                return {
+                    "requires_target": True,
+                    "targets": [],
+                    "error": "摔没有铁索目标",
+                }
+
+            # --- 镰刀工：挥镰排除仍被挥镰控制中的目标 ---
+            if skill_name == "挥镰" and isinstance(character, ScytheWorker):
+                targets = [
+                    t
+                    for t in targets
+                    if t != character
+                    and t.is_targetable()
+                    and id(t) not in character._swing_controlled_targets
+                ]
+                if not targets:
+                    return {
+                        "requires_target": True,
+                        "targets": [],
+                        "error": "挥镰没有可用目标",
+                    }
+
+            # 隐身过滤：普通技能不能选中隐身目标（除非是自身技能）
+            targets = [t for t in targets if t is character or t.is_targetable()]
+
             if not targets:
                 return {"requires_target": True, "targets": [], "error": "没有可用目标"}
 
@@ -563,6 +718,22 @@ class GameBackend:
                     character.use_whirlwind_on_targets, targets
                 )
 
+            # --- 术士多目标技能 ---
+            if skill_name == "爆炸" and isinstance(character, Warlock):
+                return self._execute_silently(
+                    character.use_explosion_on_targets, targets
+                )
+
+            if skill_name == "死亡之门" and isinstance(character, Warlock):
+                return self._execute_silently(
+                    character.use_death_gate_on_targets, targets
+                )
+
+            # --- 忍者忍法地心（自身技能，无需目标） ---
+            if skill_name == "忍法地心" and isinstance(character, Ninja):
+                self._execute_silently(character.use_skill, skill_name)
+                return True
+
             if target is None or target not in targets:
                 return False
 
@@ -587,7 +758,21 @@ class GameBackend:
                 control_name = behavior.replace("解控-", "").strip()
                 if control_name in character.control:
                     del character.control[control_name]
+                    # 通知相关角色控制已解除（镰刀工/忍者绑定联动）
+                    self._notify_control_removal(character, control_name)
                     return True
+                return False
+
+            # 搜索隐身忍者
+            if behavior.startswith("搜索-"):
+                ninja_name = behavior.replace("搜索-", "").strip()
+                for char in self.alive_characters:
+                    if (
+                        isinstance(char, Ninja)
+                        and char.name == ninja_name
+                        and char.in_stealth
+                    ):
+                        return char.be_searched(character)
                 return False
 
         if action == "[交互] 喝油 (HP+3)":
@@ -611,6 +796,21 @@ class GameBackend:
 
     def get_state_binding_system(self) -> StateBindingSystem:
         return self.state_binding_system
+
+    def _notify_control_removal(self, target: Character, control_name: str):
+        """
+        当目标解除控制效果时，通知相关角色（镰刀工/忍者等）。
+        用于联动解除状态绑定。
+        """
+        for char in self.all_characters:
+            if isinstance(char, ScytheWorker) and hasattr(
+                char, "notify_target_removed_control"
+            ):
+                char.notify_target_removed_control(target, control_name)
+            if isinstance(char, Ninja) and hasattr(
+                char, "notify_target_removed_control"
+            ):
+                char.notify_target_removed_control(target, control_name)
 
 
 class Game(GameBackend):
