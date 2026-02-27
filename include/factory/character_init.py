@@ -19,6 +19,8 @@ from characters.target import Target, TARGET_STATS_DATA
 from characters.warlock import Warlock, WARLOCK_STATS_DATA
 from characters.scythe_worker import ScytheWorker, SCYTHE_WORKER_STATS_DATA
 from characters.ninja import Ninja, NINJA_STATS_DATA
+from characters.mechanic import Mechanic, MECHANIC_STATS_DATA
+from characters.disc_master import DiscMaster, DISC_MASTER_STATS_DATA
 
 
 def initialize_characters():
@@ -130,6 +132,24 @@ def initialize_characters():
         display_name=NINJA_STATS_DATA.get("name", "忍者"),
         description=NINJA_STATS_DATA.get("description", ""),
         stats=NINJA_STATS_DATA,
+    )
+
+    # 注册机械师
+    register_character(
+        role_id="mechanic",
+        character_class=Mechanic,
+        display_name=MECHANIC_STATS_DATA.get("name", "机械师"),
+        description=MECHANIC_STATS_DATA.get("description", ""),
+        stats=MECHANIC_STATS_DATA,
+    )
+
+    # 注册卖光盘的
+    register_character(
+        role_id="disc_master",
+        character_class=DiscMaster,
+        display_name=DISC_MASTER_STATS_DATA.get("name", "卖光盘的"),
+        description=DISC_MASTER_STATS_DATA.get("description", ""),
+        stats=DISC_MASTER_STATS_DATA,
     )
 
 

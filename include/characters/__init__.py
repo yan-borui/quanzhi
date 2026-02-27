@@ -13,5 +13,19 @@ from .healer import Healer
 from .scholar import Scholar
 from .oil_master import OilMaster
 from .target import Target
+from .mechanic import Mechanic
+from .disc_master import DiscMaster
 
-__all__ = ['Knight', 'Summoner', 'Swordsman', 'Ranger', 'ArrayMaster', 'Healer', 'Scholar', 'OilMaster', 'Target']
+__all__ = [
+    "Knight",
+    "Summoner",
+    "Swordsman",
+    "Ranger",
+    "ArrayMaster",
+    "Healer",
+    "Scholar",
+    "OilMaster",
+    "Target",
+    "Mechanic",
+    "DiscMaster",
+]
