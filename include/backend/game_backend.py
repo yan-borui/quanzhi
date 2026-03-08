@@ -473,12 +473,37 @@ class GameBackend:
                 continue
 
             # --- 镰刀工特殊技能 ---
+            if skill_name == "飞镰斩" and isinstance(character, ScytheWorker):
+                slash_targets = [
+                    c
+                    for c in self.alive_characters
+                    if c.has_control("飞镰") and c.is_targetable()
+                ]
+                if slash_targets:
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无飞镰目标)")
+                continue
+
+            if skill_name == "黑暗飞镰" and isinstance(character, ScytheWorker):
+                dark_target = character._dark_scythe_target
+                if dark_target and dark_target.is_alive():
+                    if skill.is_available():
+                        actions.append(f"技能:{skill_name}")
+                    else:
+                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                else:
+                    actions.append(f"技能:{skill_name}(无飞镰斩)")
+                continue
+
             if skill_name == "挥镰" and isinstance(character, ScytheWorker):
                 swing_targets = [
                     c
                     for c in self.alive_characters
-                    if c != character
-                    and c.is_targetable()
+                    if (c is character or c.is_targetable())
                     and id(c) not in character._swing_controlled_targets
                 ]
                 if swing_targets:
@@ -606,6 +631,8 @@ class GameBackend:
                     "(机器人模式不可用)",
                     "(激活中)",
                     "(无死亡之门)",
+                    "(无飞镰目标)",
+                    "(无飞镰斩)",
                 ]
             )
             action_entries.append(
@@ -735,13 +762,36 @@ class GameBackend:
                     "error": "摔没有铁索目标",
                 }
 
+            # --- 镰刀工：飞镰斩只能对身上有飞镰标记的目标使用 ---
+            if skill_name == "飞镰斩" and isinstance(character, ScytheWorker):
+                targets = [
+                    t for t in targets if t.has_control("飞镰") and t.is_targetable()
+                ]
+                if not targets:
+                    return {
+                        "requires_target": True,
+                        "targets": [],
+                        "error": "飞镰斩没有飞镰目标",
+                    }
+                return {"requires_target": True, "targets": targets}
+
+            # --- 镰刀工：黑暗飞镰只能对_dark_scythe_target使用 ---
+            if skill_name == "黑暗飞镰" and isinstance(character, ScytheWorker):
+                dark_target = character._dark_scythe_target
+                if dark_target and dark_target.is_alive():
+                    return {"requires_target": True, "targets": [dark_target]}
+                return {
+                    "requires_target": True,
+                    "targets": [],
+                    "error": "黑暗飞镰无可用目标",
+                }
+
             # --- 镰刀工：挥镰排除仍被挥镰控制中的目标 ---
             if skill_name == "挥镰" and isinstance(character, ScytheWorker):
                 targets = [
                     t
                     for t in targets
-                    if t != character
-                    and t.is_targetable()
+                    if (t is character or t.is_targetable())
                     and id(t) not in character._swing_controlled_targets
                 ]
                 if not targets:

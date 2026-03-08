@@ -25,7 +25,7 @@ from threading import Lock
 from core.skill import Skill
 from core.behavior import BehaviorType
 
-HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵"}
+HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵", "飞镰"}
 
 BURNING_BLOCKS: Dict[int, int] = {}
 BURNING_BLOCKS_LOCK = Lock()

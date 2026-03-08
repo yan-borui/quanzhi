@@ -29,12 +29,21 @@ class ScytheWorker(Character):
         self._initialize_skills()
         # 挥镰使用限制追踪：记录目标仍被挥镰控制中的目标id集合
         self._swing_controlled_targets: Set[int] = set()
+        # 飞镰斩→黑暗飞镰联动追踪
+        self._slash_target_pending: Optional[Character] = None  # 本回合飞镰斩命中的目标
+        self._dark_scythe_target: Optional[Character] = None  # 下回合可用黑暗飞镰的目标
         # 状态绑定系统引用（由GameBackend注入或使用默认）
         self.state_binding_system: StateBindingSystem = _state_binding_system
 
     def set_state_binding_system(self, system: StateBindingSystem):
         """由GameBackend调用注入系统级的状态绑定管理器"""
         self.state_binding_system = system
+
+    def on_turn_start(self):
+        """回合开始：将上回合飞镰斩的目标带入黑暗飞镰可用状态"""
+        super().on_turn_start()
+        self._dark_scythe_target = self._slash_target_pending
+        self._slash_target_pending = None
 
     def _initialize_skills(self):
         flying_scythe = Skill("飞镰", cooldown=0)
@@ -131,19 +140,27 @@ class ScytheWorker(Character):
     def _scythe_slash_effect(
         self, caster: Character, target: Optional[Character]
     ) -> bool:
-        """飞镰斩：9点伤害"""
+        """飞镰斩：9点伤害（需目标身上有飞镰标记）"""
         if not target:
             return False
+        if not target.has_control("飞镰"):
+            print(f"{target.get_name()} 身上没有飞镰标记，无法使用飞镰斩！")
+            return False
         target.take_damage(self.apply_attack_buff(9))
+        self._slash_target_pending = target
         return True
 
     def _dark_scythe_effect(
         self, caster: Character, target: Optional[Character]
     ) -> bool:
-        """黑暗飞镰：12点伤害"""
+        """黑暗飞镰：12点伤害（只能在飞镰斩后下一回合对同一目标使用）"""
         if not target:
             return False
+        if self._dark_scythe_target is not target:
+            print(f"黑暗飞镰只能对上回合被飞镰斩命中的目标使用！")
+            return False
         target.take_damage(self.apply_attack_buff(12))
+        self._dark_scythe_target = None
         return True
 
     def _swing_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -220,6 +237,8 @@ class ScytheWorker(Character):
     def reset_battle_round(self):
         """新一局重置"""
         self._swing_controlled_targets.clear()
+        self._slash_target_pending = None
+        self._dark_scythe_target = None
         self.state_binding_system.unbind_all_from_source(self)
         print(f"{self.name} 准备就绪，所有绑定已重置")
 
