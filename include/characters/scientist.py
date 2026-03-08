@@ -19,11 +19,27 @@
 - 机器人模式下没有机器人后真正死亡
 """
 
-from typing import Optional
+from typing import Optional, List
 
 from core.behavior import BehaviorType
 from core.character import Character
 from core.skill import Skill
+
+
+class MiniRobot(Character):
+    """科学家制造的小机器人 — 可被其他角色选中为目标，不参与石头剪刀布"""
+
+    is_mini_robot = True
+
+    def __init__(self, name: str, owner: "Scientist"):
+        super().__init__(name, max_hp=1, control={}, stealth=0)
+        self._owner = owner
+
+    def use_skill(self, skill_name: str):
+        pass
+
+    def on_destroy(self):
+        print(f"机器人 {self.name} 被摧毁！")
 
 
 class Scientist(Character):
@@ -32,6 +48,10 @@ class Scientist(Character):
         self._initialize_skills()
         # 是否处于机器人模式（死后转移到机器人上）
         self._in_robot_mode = False
+        # 命名小机器人列表
+        self._named_robots: List[MiniRobot] = []
+        # 制造机器人前由外部（CLI/后端）设置的名字
+        self._pending_robot_name: Optional[str] = None
 
     def _initialize_skills(self):
         high_voltage = Skill("高压电池", cooldown=2)
@@ -65,8 +85,16 @@ class Scientist(Character):
 
     @property
     def robot_count(self) -> int:
-        """当前机器人数量"""
-        return self.get_accumulation("机器人")
+        """当前存活机器人数量（基于命名机器人列表）"""
+        return sum(1 for r in self._named_robots if r.is_alive())
+
+    def set_pending_robot_name(self, name: str):
+        """制造机器人前由CLI/后端调用，设置即将建造的机器人名字"""
+        self._pending_robot_name = name
+
+    def get_named_robots(self) -> List[MiniRobot]:
+        """返回所有命名机器人（含已死亡）"""
+        return list(self._named_robots)
 
     @property
     def in_robot_mode(self) -> bool:
@@ -143,14 +171,19 @@ class Scientist(Character):
     def _build_robot_effect(
         self, caster: Character, target: Optional[Character]
     ) -> bool:
-        """制造机器人：消耗4个电池，机器人+1"""
+        """制造机器人：消耗4个电池，创建一个命名小机器人"""
         # 消耗4个电池
         self.reduce_accumulation("电池", 4)
         print(f"{self.name} 消耗了4个电池，剩余电池: {self.battery_count}")
 
-        # 添加1个机器人
-        self.add_accumulation("机器人", 1)
-        print(f"{self.name} 制造了1个机器人，当前机器人: {self.robot_count}")
+        # 使用预设名称或自动生成名称
+        name = self._pending_robot_name or f"机器人{len(self._named_robots) + 1}"
+        self._pending_robot_name = None
+        robot = MiniRobot(name, owner=self)
+        self._named_robots.append(robot)
+        print(
+            f"{self.name} 制造了小机器人 [{robot.name}]！当前机器人: {self.robot_count}"
+        )
         return True
 
     def _punch_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -178,8 +211,11 @@ class Scientist(Character):
         n = self.robot_count
         damage = 15 * n
         print(f"{self.name} 引爆了 {n} 个机器人自爆！伤害: {damage}")
-        # 消耗所有机器人
-        self.clear_accumulation("机器人")
+        # 摧毁所有命名机器人
+        for robot in self._named_robots:
+            if robot.is_alive():
+                robot.current_hp = 0
+                print(f"机器人 {robot.name} 在自爆中被摧毁！")
         target.take_damage(self.apply_attack_buff(damage))
 
         # 如果在机器人模式下自爆后没有机器人了，真正死亡
@@ -217,8 +253,7 @@ class Scientist(Character):
 
     def take_damage(self, damage: int):
         """
-        科学家在机器人模式下受伤时，损失机器人而非生命值。
-        每次受伤失去1个机器人。
+        科学家在机器人模式下受伤时，损失一个命名机器人而非生命值。
         """
         if self._in_robot_mode and self.robot_count > 0:
             # 单次护盾效果
@@ -227,12 +262,15 @@ class Scientist(Character):
                 print(f"{self.name} 的护盾抵消了这次攻击！")
                 return
 
-            lost = 1
-            self.reduce_accumulation("机器人", lost)
-            print(
-                f"{self.name}（机器人模式）受到攻击，损失 {lost} 个机器人！"
-                f"剩余机器人: {self.robot_count}"
-            )
+            # 摧毁第一个存活的命名机器人
+            for robot in self._named_robots:
+                if robot.is_alive():
+                    robot.current_hp = 0
+                    print(
+                        f"{self.name}（机器人模式）受到攻击，机器人 [{robot.name}] 被摧毁！"
+                        f"剩余机器人: {self.robot_count}"
+                    )
+                    break
             if self.robot_count <= 0:
                 print(f"{self.name} 的所有机器人被摧毁，科学家真正阵亡！")
                 self._in_robot_mode = False
@@ -254,9 +292,12 @@ class Scientist(Character):
             print(f"{self.name} 用电磁脉冲挣脱束缚！")
 
     def reset_battle_round(self):
-        """新一局重置：清除电池和机器人累积"""
+        """新一局重置：清除电池和所有命名机器人"""
         self.clear_accumulation("电池")
-        self.clear_accumulation("机器人")
+        for robot in self._named_robots:
+            robot.current_hp = 0
+        self._named_robots.clear()
+        self._pending_robot_name = None
         self._in_robot_mode = False
         print(f"{self.name} 准备就绪，所有状态已重置")
 

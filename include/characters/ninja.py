@@ -173,10 +173,14 @@ class Ninja(Character):
     def _sneak_attack_effect(
         self, caster: Character, target: Optional[Character]
     ) -> bool:
-        """偷袭：6点伤害，需处于忍法地心隐身"""
+        """偷袭：6点伤害，需处于忍法地心隐身。使用后忍法地心和樱花岁月进入2回合冷却"""
         if not target:
             return False
         target.take_damage(self.apply_attack_buff(6))
+        # 偷袭成功后，忍法地心须再过两回合才可使用（cd=2）
+        stealth_skill = self.get_skill("忍法地心")
+        if stealth_skill:
+            stealth_skill.set_cooldown(2)
         return True
 
     def be_searched(self, searcher: Character) -> bool:

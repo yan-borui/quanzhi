@@ -13,7 +13,7 @@ from characters.warlock import Warlock
 from characters.scythe_worker import ScytheWorker
 from characters.ninja import Ninja
 from characters.chicken_master import ChickenMaster
-from characters.scientist import Scientist
+from characters.scientist import Scientist, MiniRobot
 
 # 导入配置系统
 from config.game_config import get_game_config
@@ -64,6 +64,9 @@ class GameBackend:
     def reset_game(self):
         new_characters = []
         for char in self.all_characters:
+            # 跳过小机器人，随科学家重置自动消失
+            if getattr(char, "is_mini_robot", False):
+                continue
             char_class = type(char)
             new_char = char_class(char.name)
             new_characters.append(new_char)
@@ -82,27 +85,30 @@ class GameBackend:
 
     def is_game_over(self):
         self.update_alive_characters()
-        return (
-            len(self.alive_characters) <= 1
-            or self.round_count >= self.config.max_rounds
-        )
+        real_alive = [
+            c for c in self.alive_characters if not getattr(c, "is_mini_robot", False)
+        ]
+        return len(real_alive) <= 1 or self.round_count >= self.config.max_rounds
 
     def get_game_over_summary(self):
         self.update_alive_characters()
-        if len(self.alive_characters) == 1:
-            winner = self.alive_characters[0]
+        real_alive = [
+            c for c in self.alive_characters if not getattr(c, "is_mini_robot", False)
+        ]
+        if len(real_alive) == 1:
+            winner = real_alive[0]
             result = {
                 "type": "winner",
                 "winner_name": winner.name,
                 "winner_hp": winner.current_hp,
                 "winner_max_hp": winner.max_hp,
             }
-        elif len(self.alive_characters) == 0:
+        elif len(real_alive) == 0:
             result = {"type": "all_destroyed"}
         else:
             result = {
                 "type": "draw",
-                "alive_names": [char.name for char in self.alive_characters],
+                "alive_names": [char.name for char in real_alive],
             }
 
         result["round_count"] = self.round_count
@@ -271,6 +277,9 @@ class GameBackend:
                 status_info.append(f"机器人:{char.robot_count}")
                 if char.in_robot_mode:
                     status_info.append("机器人模式")
+            if getattr(char, "is_mini_robot", False):
+                owner = char._owner
+                status_info.append(f"[小机器人] 归属:{owner.name}")
             status.append(
                 {
                     "character": char,
@@ -296,7 +305,10 @@ class GameBackend:
             char.reduce_all_cooldowns()
 
     def rock_paper_scissors(self):
-        participants = self.alive_characters.copy()
+        # 小机器人不参与石头剪刀布
+        participants = [
+            c for c in self.alive_characters if not getattr(c, "is_mini_robot", False)
+        ]
         logs = ["=== 石头剪刀布环节 ==="]
 
         for char in self.all_characters:
@@ -684,12 +696,14 @@ class GameBackend:
                 targets = filtered_targets
 
             if skill_name == "回旋斩":
-                targets = [t for t in targets if character.is_nearby(t)]
+                targets = [
+                    t for t in targets if character.is_nearby(t) and t is not character
+                ]
                 if not targets:
                     return {
                         "requires_target": False,
                         "targets": [],
-                        "error": "回旋斩需要附近目标",
+                        "error": "回旋斩需要附近敌方目标",
                     }
                 return {"requires_target": False, "targets": targets}
 
@@ -809,6 +823,15 @@ class GameBackend:
             if isinstance(character, Scientist):
                 if skill_name in ("电池", "制造机器人"):
                     return {"requires_target": False, "targets": []}
+                # 小机器人不能被科学家自身的撸/自爆选为目标（排除自己的机器人）
+                targets = [
+                    t
+                    for t in targets
+                    if not (
+                        getattr(t, "is_mini_robot", False)
+                        and getattr(t, "_owner", None) is character
+                    )
+                ]
 
             # 隐身过滤：普通技能不能选中隐身目标（除非是自身技能）
             targets = [t for t in targets if t is character or t.is_targetable()]
@@ -859,10 +882,20 @@ class GameBackend:
                 if skill_name == "空投" and isinstance(character, ChickenMaster):
                     self._execute_silently(character.use_skill, skill_name)
                     return True
-                if skill_name in ("电池", "制造机器人") and isinstance(
-                    character, Scientist
-                ):
+                if skill_name == "电池" and isinstance(character, Scientist):
                     self._execute_silently(character.use_skill, skill_name)
+                    return True
+                if skill_name == "制造机器人" and isinstance(character, Scientist):
+                    self._execute_silently(character.use_skill, skill_name)
+                    # 将新建的小机器人加入游戏
+                    for robot in character.get_named_robots():
+                        if robot not in self.all_characters:
+                            robot.block_id = character.block_id
+                            robot.nearby_characters = [robot]
+                            self.all_characters.append(robot)
+                            if robot.is_alive():
+                                self.alive_characters.append(robot)
+                            print(f"小机器人 [{robot.name}] 加入战场！")
                     return True
                 if skill_name == "忍法地心" and isinstance(character, Ninja):
                     self._execute_silently(character.use_skill, skill_name)

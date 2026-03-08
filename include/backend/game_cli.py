@@ -3,6 +3,7 @@
 import time
 
 from backend.game_backend import GameBackend
+from characters.scientist import Scientist
 
 
 class GameCLI:
@@ -228,6 +229,14 @@ class GameCLI:
                 else:
                     target = None
                     selected_targets = None
+                    # 科学家制造机器人：先为机器人命名
+                    if action == "技能:制造机器人" and isinstance(winner, Scientist):
+                        robot_name = input(
+                            "请为你的小机器人起名: "
+                        ).strip()  # Target: Current Player
+                        if not robot_name:
+                            robot_name = f"机器人{winner.robot_count + 1}"
+                        winner.set_pending_robot_name(robot_name)
                     if target_info.get("requires_target"):
                         if target_info.get("multi_select"):
                             selected_targets = self.choose_multiple_targets(
