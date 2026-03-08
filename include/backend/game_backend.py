@@ -249,6 +249,9 @@ class GameBackend:
                     if char not in self.alive_characters:
                         self.alive_characters.append(char)
 
+        # 若有角色携带死亡之门死亡，检查是否需要重置术士冷却
+        self._check_death_gate_cleared()
+
     def get_battle_status(self):
         status = []
         for char in self.all_characters:
@@ -435,33 +438,38 @@ class GameBackend:
 
             # --- 术士特殊技能 ---
             if skill_name == "爆炸" and isinstance(character, Warlock):
-                explosion_targets = [
+                death_gate_targets = [
                     c
                     for c in self.alive_characters
-                    if c != character and c.is_targetable()
+                    if c != character and c.has_control("死亡之门")
                 ]
-                if explosion_targets:
+                if death_gate_targets:
                     if skill.is_available():
                         actions.append(f"技能:{skill_name}")
                     else:
                         actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
                 else:
-                    actions.append(f"技能:{skill_name}(无有效目标)")
+                    actions.append(f"技能:{skill_name}(无死亡之门)")
                 continue
 
             if skill_name == "死亡之门" and isinstance(character, Warlock):
-                gate_targets = [
-                    c
-                    for c in self.alive_characters
-                    if c != character and c.is_targetable()
-                ]
-                if gate_targets:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+                if character._death_gate_active:
+                    actions.append(f"技能:{skill_name}(激活中)")
                 else:
-                    actions.append(f"技能:{skill_name}(无有效目标)")
+                    gate_targets = [
+                        c
+                        for c in self.alive_characters
+                        if c != character and c.is_targetable()
+                    ]
+                    if gate_targets:
+                        if skill.is_available():
+                            actions.append(f"技能:{skill_name}")
+                        else:
+                            actions.append(
+                                f"技能:{skill_name}(CD:{skill.get_cooldown()})"
+                            )
+                    else:
+                        actions.append(f"技能:{skill_name}(无有效目标)")
                 continue
 
             # --- 镰刀工特殊技能 ---
@@ -596,6 +604,8 @@ class GameBackend:
                     "(电池不足:",
                     "(无机器人)",
                     "(机器人模式不可用)",
+                    "(激活中)",
+                    "(无死亡之门)",
                 ]
             )
             action_entries.append(
@@ -679,18 +689,30 @@ class GameBackend:
                         "error": "无敌刺没有符合条件的目标",
                     }
 
-            # --- 术士：爆炸（多目标）和死亡之门（多目标）不需要选单个目标 ---
+            # --- 术士：爆炸锁定死亡之门目标，死亡之门由玩家多选目标 ---
             if skill_name == "爆炸" and isinstance(character, Warlock):
                 explosion_targets = [
-                    t for t in targets if t != character and t.is_targetable()
+                    t
+                    for t in self.alive_characters
+                    if t != character and t.has_control("死亡之门")
                 ]
+                if not explosion_targets:
+                    return {
+                        "requires_target": False,
+                        "targets": [],
+                        "error": "没有携带死亡之门的目标",
+                    }
                 return {"requires_target": False, "targets": explosion_targets}
 
             if skill_name == "死亡之门" and isinstance(character, Warlock):
                 gate_targets = [
                     t for t in targets if t != character and t.is_targetable()
                 ]
-                return {"requires_target": False, "targets": gate_targets}
+                return {
+                    "requires_target": True,
+                    "multi_select": True,
+                    "targets": gate_targets,
+                }
 
             # --- 镰刀工：忍法地心自身技能 ---
             if skill_name == "忍法地心" and isinstance(character, Ninja):
@@ -762,7 +784,11 @@ class GameBackend:
         return {"requires_target": False, "targets": []}
 
     def execute_player_action(
-        self, character, action, target: Optional[Character] = None
+        self,
+        character,
+        action,
+        target: Optional[Character] = None,
+        selected_targets: Optional[List[Character]] = None,
     ) -> bool:
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
@@ -807,8 +833,14 @@ class GameBackend:
                 )
 
             if skill_name == "死亡之门" and isinstance(character, Warlock):
+                # 优先使用玩家主动选择的目标列表
+                final_gate_targets = (
+                    selected_targets if selected_targets is not None else targets
+                )
+                if not final_gate_targets:
+                    return False
                 return self._execute_silently(
-                    character.use_death_gate_on_targets, targets
+                    character.use_death_gate_on_targets, final_gate_targets
                 )
 
             if target is None or target not in targets:
@@ -888,6 +920,24 @@ class GameBackend:
                 char, "notify_target_removed_control"
             ):
                 char.notify_target_removed_control(target, control_name)
+
+        # 当死亡之门被解除时，检查是否所有死亡之门都已清空
+        if control_name == "死亡之门":
+            self._check_death_gate_cleared()
+
+    def _check_death_gate_cleared(self):
+        """检查场上是否还有死亡之门；若全部清除，重置术士状态并设置2回合冷却。"""
+        has_active_gate = any(
+            char.has_control("死亡之门") for char in self.alive_characters
+        )
+        if not has_active_gate:
+            for char in self.all_characters:
+                if isinstance(char, Warlock) and char._death_gate_active:
+                    char._death_gate_active = False
+                    char._death_gate_initial_count = 0
+                    death_gate_skill = char.get_skill("死亡之门")
+                    if death_gate_skill:
+                        death_gate_skill.set_cooldown(2)
 
 
 class Game(GameBackend):

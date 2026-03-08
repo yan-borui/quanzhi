@@ -21,6 +21,9 @@ from core.skill import Skill
 class Warlock(Character):
     def __init__(self, name: str = "术士"):
         super().__init__(name, max_hp=60, control={}, stealth=0)
+        # 死亡之门状态追踪
+        self._death_gate_active = False  # 场上是否存在死亡之门
+        self._death_gate_initial_count = 0  # 本次死亡之门施加的初始目标数
         self._initialize_skills()
 
     def _initialize_skills(self):
@@ -62,7 +65,7 @@ class Warlock(Character):
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
     def use_death_gate_on_targets(self, targets: List[Character]) -> bool:
-        """死亡之门：对多个目标施加控制，每个目标均需独立解控"""
+        """死亡之门：对玩家选中的目标施加控制，每个目标均需独立解控"""
         skill = self.get_skill("死亡之门")
         if not skill:
             print(f"{self.name} 没有技能: 死亡之门")
@@ -70,20 +73,26 @@ class Warlock(Character):
         if not skill.is_available():
             print(f"技能 死亡之门 在冷却中 (CD:{skill.get_cooldown()})")
             return False
+        if self._death_gate_active:
+            print("场上已有死亡之门激活，无法再次使用！")
+            return False
         if not targets:
             print("死亡之门没有有效目标！")
             return False
+
+        self._death_gate_initial_count = len(targets)
+        self._death_gate_active = True
 
         print(f"{self.name} 使用了 死亡之门！")
         for target in targets:
             target.add_control("死亡之门", 1)
             print(f"{target.get_name()} 被死亡之门束缚，需独立解控！")
 
-        skill.set_cooldown(skill.get_base_cooldown())
+        # 不在此处设置CD，待所有死亡之门解除后由外部设置CD=2
         return True
 
     def use_explosion_on_targets(self, targets: List[Character]) -> bool:
-        """爆炸：对多个目标造成伤害，伤害在目标间平分。总伤害12。"""
+        """爆炸：对所有携带死亡之门的目标造成伤害（12/初始分门人数），爆炸后解除所有死亡之门。"""
         skill = self.get_skill("爆炸")
         if not skill:
             print(f"{self.name} 没有技能: 爆炸")
@@ -92,17 +101,32 @@ class Warlock(Character):
             print(f"技能 爆炸 在冷却中 (CD:{skill.get_cooldown()})")
             return False
         if not targets:
-            print("爆炸没有有效目标！")
+            print("爆炸：场上没有携带死亡之门的目标！")
             return False
 
-        total_damage = self.apply_attack_buff(12)
-        damage_per_target = max(1, total_damage // len(targets))
+        initial_count = (
+            self._death_gate_initial_count
+            if self._death_gate_initial_count > 0
+            else len(targets)
+        )
+        base_damage = max(1, 12 // initial_count)
+        damage_per_target = self.apply_attack_buff(base_damage)
 
         print(
-            f"{self.name} 使用了 爆炸！总伤害{total_damage}，分摊给{len(targets)}个目标，每人{damage_per_target}点"
+            f"{self.name} 使用了 爆炸！初始分门{initial_count}人，每人受到{damage_per_target}点伤害"
         )
         for target in targets:
             target.take_damage(damage_per_target)
+            # 解除该目标的死亡之门
+            target.control.pop("死亡之门", None)
+            print(f"{target.get_name()} 的死亡之门已解除！")
+
+        # 清空死亡之门状态，设置2回合冷却
+        self._death_gate_active = False
+        self._death_gate_initial_count = 0
+        death_gate_skill = self.get_skill("死亡之门")
+        if death_gate_skill:
+            death_gate_skill.set_cooldown(2)
 
         skill.set_cooldown(skill.get_base_cooldown())
         return True
