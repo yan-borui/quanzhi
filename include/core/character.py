@@ -25,8 +25,7 @@ from threading import Lock
 from core.skill import Skill
 from core.behavior import BehaviorType
 
-
-HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵"}
+HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵", "飞镰"}
 
 BURNING_BLOCKS: Dict[int, int] = {}
 BURNING_BLOCKS_LOCK = Lock()
@@ -45,7 +44,13 @@ def get_burning_block_stacks(block_id: int) -> int:
 
 
 class Character(ABC):
-    def __init__(self, name: str = "", max_hp: int = 0, control: Dict[str, int] = None, stealth: int = 0):
+    def __init__(
+        self,
+        name: str = "",
+        max_hp: int = 0,
+        control: Dict[str, int] = None,
+        stealth: int = 0,
+    ):
         self.name = name
         self.max_hp = max(0, max_hp)
         self.current_hp = max(0, self.max_hp)
@@ -56,7 +61,7 @@ class Character(ABC):
         self.skills: Dict[str, Skill] = {}
         self.imprints: Dict[str, int] = {}
         self.accumulations: Dict[str, int] = {}
-        self.nearby_characters: List['Character'] = [self]
+        self.nearby_characters: List["Character"] = [self]
         self.current_behavior: Optional[BehaviorType] = None
 
         # 每回合的事件记录（只保留最近两个回合）
@@ -69,13 +74,15 @@ class Character(ABC):
 
     def start_new_turn_log(self):
         """开始新回合时调用，创建一条新的事件记录"""
-        self.turn_effects_history.append({
-            "damage": 0,
-            "heal": 0,
-            "control_add": {},  # name -> stacks
-            "control_remove": {},  # name -> stacks
-            "imprint_add": {}
-        })
+        self.turn_effects_history.append(
+            {
+                "damage": 0,
+                "heal": 0,
+                "control_add": {},  # name -> stacks
+                "control_remove": {},  # name -> stacks
+                "imprint_add": {},
+            }
+        )
         # 只保留最近两个回合的记录
         if len(self.turn_effects_history) > 2:
             self.turn_effects_history.pop(0)
@@ -99,7 +106,7 @@ class Character(ABC):
         return any(k not in HARMLESS_CONTROLS for k in self.control.keys())
 
     # 带目标的技能使用（可选实现）
-    def use_skill_on_target(self, skill_name: str, target: 'Character'):
+    def use_skill_on_target(self, skill_name: str, target: "Character"):
         # 默认实现忽略目标，子类可以重写
         self.use_skill(skill_name)
 
@@ -113,12 +120,14 @@ class Character(ABC):
         """获取当前行为"""
         return self.current_behavior
 
-    def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
+    def on_behavior_change(
+        self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
+    ):
         """行为改变时的回调，子类可重写"""
         pass
 
     # 邻接表管理
-    def add_nearby_character(self, character: 'Character'):
+    def add_nearby_character(self, character: "Character"):
         """添加附近角色"""
         if character != self and character not in self.nearby_characters:
             self.nearby_characters.append(character)
@@ -126,7 +135,7 @@ class Character(ABC):
                 character.add_nearby_character(self)
             print(f"{self.name} 与 {character.name} 距离变近")
 
-    def remove_nearby_character(self, character: 'Character'):
+    def remove_nearby_character(self, character: "Character"):
         """移除附近角色"""
         if character in self.nearby_characters:
             self.nearby_characters.remove(character)
@@ -139,11 +148,11 @@ class Character(ABC):
         for character in list(self.nearby_characters):
             self.remove_nearby_character(character)
 
-    def get_nearby_characters(self) -> List['Character']:
+    def get_nearby_characters(self) -> List["Character"]:
         """获取附近角色列表"""
         return list(self.nearby_characters)
 
-    def is_nearby(self, character: 'Character') -> bool:
+    def is_nearby(self, character: "Character") -> bool:
         """检查是否在某个角色附近（基于block_id判断，避免邻接表不同步）"""
         return self.block_id == character.block_id
 
@@ -184,7 +193,9 @@ class Character(ABC):
         # 记录本回合受到的伤害
         self._current_turn_log()["damage"] += damage
 
-        print(f"{self.name} 受到了 {damage} 点伤害，当前生命值: {self.current_hp}/{self.max_hp}")
+        print(
+            f"{self.name} 受到了 {damage} 点伤害，当前生命值: {self.current_hp}/{self.max_hp}"
+        )
 
         if was_alive and self.is_destroyed():
             if self.control:
@@ -204,7 +215,9 @@ class Character(ABC):
         # 记录本回合治疗
         self._current_turn_log()["heal"] += amount
 
-        print(f"{self.name} 恢复了 {amount} 点生命值，当前生命值: {self.current_hp}/{self.max_hp}")
+        print(
+            f"{self.name} 恢复了 {amount} 点生命值，当前生命值: {self.current_hp}/{self.max_hp}"
+        )
 
     # 技能管理
     def has_skill(self, skill_name: str) -> bool:
@@ -238,7 +251,9 @@ class Character(ABC):
     def add_or_replace_skill_copy(self, skill: Skill):
         if not skill.get_name():
             return
-        self.skills[skill.get_name()] = Skill(skill.get_name(), skill.get_base_cooldown())
+        self.skills[skill.get_name()] = Skill(
+            skill.get_name(), skill.get_base_cooldown()
+        )
 
     def get_skill(self, skill_name: str) -> Optional[Skill]:
         return self.skills.get(skill_name)
@@ -255,9 +270,13 @@ class Character(ABC):
 
         # 记录本回合新增控制
         log = self._current_turn_log()
-        log["control_add"][control_name] = log["control_add"].get(control_name, 0) + stacks
+        log["control_add"][control_name] = (
+            log["control_add"].get(control_name, 0) + stacks
+        )
 
-        print(f"{self.name} 获得了 {control_name} 控制效果，层数: {self.control[control_name]}")
+        print(
+            f"{self.name} 获得了 {control_name} 控制效果，层数: {self.control[control_name]}"
+        )
 
     def get_control(self, control_name: str = None) -> int:
         if control_name:
@@ -280,11 +299,15 @@ class Character(ABC):
             del self.control[control_name]
             print(f"{self.name} 清除了 {control_name} 控制效果")
         else:
-            print(f"{self.name} 减少了 {control_name} 控制效果，剩余层数: {self.control[control_name]}")
+            print(
+                f"{self.name} 减少了 {control_name} 控制效果，剩余层数: {self.control[control_name]}"
+            )
 
         # 记录本回合移除控制
         log = self._current_turn_log()
-        log["control_remove"][control_name] = log["control_remove"].get(control_name, 0) + removed
+        log["control_remove"][control_name] = (
+            log["control_remove"].get(control_name, 0) + removed
+        )
 
     def clear_control(self, control_name: str):
         """清除特定的控制效果"""
@@ -292,7 +315,9 @@ class Character(ABC):
             stacks = self.control.get(control_name, 0)
             # 记录移除
             log = self._current_turn_log()
-            log["control_remove"][control_name] = log["control_remove"].get(control_name, 0) + stacks
+            log["control_remove"][control_name] = (
+                log["control_remove"].get(control_name, 0) + stacks
+            )
 
             del self.control[control_name]
             print(f"{self.name} 清除了 {control_name} 控制效果")
@@ -302,7 +327,9 @@ class Character(ABC):
         if self.control:
             log = self._current_turn_log()
             for control_name, stacks in self.control.items():
-                log["control_remove"][control_name] = log["control_remove"].get(control_name, 0) + stacks
+                log["control_remove"][control_name] = (
+                    log["control_remove"].get(control_name, 0) + stacks
+                )
         self.control.clear()
 
     # 印记管理
@@ -317,7 +344,9 @@ class Character(ABC):
             log = self._current_turn_log()
             log["imprint_add"][imprint] = log["imprint_add"].get(imprint, 0) + value
 
-        print(f"{self.name} 获得了 {imprint} 印记，值: {value}，当前值: {self.imprints[imprint]}")
+        print(
+            f"{self.name} 获得了 {imprint} 印记，值: {value}，当前值: {self.imprints[imprint]}"
+        )
 
     def get_imprint(self, imprint: str) -> int:
         return self.imprints.get(imprint, 0)
@@ -329,7 +358,9 @@ class Character(ABC):
 
         if self.imprints[imprint] > 1:
             self.imprints[imprint] -= 1
-            print(f"{self.name} 移除了一层 {imprint} 印记，剩余: {self.imprints[imprint]}")
+            print(
+                f"{self.name} 移除了一层 {imprint} 印记，剩余: {self.imprints[imprint]}"
+            )
         else:
             del self.imprints[imprint]
             print(f"{self.name} 清除了 {imprint} 印记")
@@ -361,7 +392,9 @@ class Character(ABC):
             del self.accumulations[effect]
             print(f"{self.name} 消耗并清除了 {effect} 累积效果")
         else:
-            print(f"{self.name} 消耗了 {effect} 累积效果，剩余: {self.accumulations[effect]}")
+            print(
+                f"{self.name} 消耗了 {effect} 累积效果，剩余: {self.accumulations[effect]}"
+            )
 
     def clear_accumulation(self, effect: str):
         if effect in self.accumulations:
@@ -410,6 +443,10 @@ class Character(ABC):
 
     def can_act(self) -> bool:
         return self.is_alive() and not self.is_controlled()
+
+    def is_targetable(self) -> bool:
+        """检查角色是否可被选为攻击目标（隐身角色不可被选）"""
+        return self.is_alive() and self.stealth <= 0
 
     def on_turn_start(self):
         """基础回合开始逻辑：处理通用持续效果"""

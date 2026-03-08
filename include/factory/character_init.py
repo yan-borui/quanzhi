@@ -16,90 +16,160 @@ from characters.healer import Healer, HEALER_STATS_DATA
 from characters.scholar import Scholar, SCHOLAR_STATS_DATA
 from characters.oil_master import OilMaster, OIL_MASTER_STATS_DATA
 from characters.target import Target, TARGET_STATS_DATA
+from characters.warlock import Warlock, WARLOCK_STATS_DATA
+from characters.scythe_worker import ScytheWorker, SCYTHE_WORKER_STATS_DATA
+from characters.ninja import Ninja, NINJA_STATS_DATA
+from characters.mechanic import Mechanic, MECHANIC_STATS_DATA
+from characters.disc_master import DiscMaster, DISC_MASTER_STATS_DATA
+from characters.chicken_master import ChickenMaster, CHICKEN_MASTER_STATS_DATA
+from characters.scientist import Scientist, SCIENTIST_STATS_DATA
 
 
 def initialize_characters():
     """初始化并注册所有内置角色"""
-    
+
     # 注册骑士
     register_character(
         role_id="knight",
         character_class=Knight,
         display_name=KNIGHT_STATS_DATA.get("name", "骑士"),
         description=KNIGHT_STATS_DATA.get("description", ""),
-        stats=KNIGHT_STATS_DATA
+        stats=KNIGHT_STATS_DATA,
     )
-    
+
     # 注册召唤师
     register_character(
         role_id="summoner",
         character_class=Summoner,
         display_name=SUMMONER_STATS_DATA.get("name", "召唤师"),
         description=SUMMONER_STATS_DATA.get("description", ""),
-        stats=SUMMONER_STATS_DATA
+        stats=SUMMONER_STATS_DATA,
     )
-    
+
     # 注册剑客
     register_character(
         role_id="swordsman",
         character_class=Swordsman,
         display_name=SWORDSMAN_STATS_DATA.get("name", "剑客"),
         description=SWORDSMAN_STATS_DATA.get("description", ""),
-        stats=SWORDSMAN_STATS_DATA
+        stats=SWORDSMAN_STATS_DATA,
     )
-    
+
     # 注册游侠
     register_character(
         role_id="ranger",
         character_class=Ranger,
         display_name=RANGER_STATS_DATA.get("name", "游侠"),
         description=RANGER_STATS_DATA.get("description", ""),
-        stats=RANGER_STATS_DATA
+        stats=RANGER_STATS_DATA,
     )
-    
+
     # 注册阵鬼
     register_character(
         role_id="array_master",
         character_class=ArrayMaster,
         display_name=ARRAY_MASTER_STATS_DATA.get("name", "阵鬼"),
         description=ARRAY_MASTER_STATS_DATA.get("description", ""),
-        stats=ARRAY_MASTER_STATS_DATA
+        stats=ARRAY_MASTER_STATS_DATA,
     )
-    
+
     # 注册治疗师
     register_character(
         role_id="healer",
         character_class=Healer,
         display_name=HEALER_STATS_DATA.get("name", "治疗师"),
         description=HEALER_STATS_DATA.get("description", ""),
-        stats=HEALER_STATS_DATA
+        stats=HEALER_STATS_DATA,
     )
-    
+
     # 注册魔道学者
     register_character(
         role_id="scholar",
         character_class=Scholar,
         display_name=SCHOLAR_STATS_DATA.get("name", "魔道学者"),
         description=SCHOLAR_STATS_DATA.get("description", ""),
-        stats=SCHOLAR_STATS_DATA
+        stats=SCHOLAR_STATS_DATA,
     )
-    
+
     # 注册卖油翁
     register_character(
         role_id="oil_master",
         character_class=OilMaster,
         display_name=OIL_MASTER_STATS_DATA.get("name", "卖油翁"),
         description=OIL_MASTER_STATS_DATA.get("description", ""),
-        stats=OIL_MASTER_STATS_DATA
+        stats=OIL_MASTER_STATS_DATA,
     )
-    
+
     # 注册靶子
     register_character(
         role_id="target",
         character_class=Target,
         display_name=TARGET_STATS_DATA.get("name", "靶子"),
         description=TARGET_STATS_DATA.get("description", ""),
-        stats=TARGET_STATS_DATA
+        stats=TARGET_STATS_DATA,
+    )
+
+    # 注册术士
+    register_character(
+        role_id="warlock",
+        character_class=Warlock,
+        display_name=WARLOCK_STATS_DATA.get("name", "术士"),
+        description=WARLOCK_STATS_DATA.get("description", ""),
+        stats=WARLOCK_STATS_DATA,
+    )
+
+    # 注册镰刀工
+    register_character(
+        role_id="scythe_worker",
+        character_class=ScytheWorker,
+        display_name=SCYTHE_WORKER_STATS_DATA.get("name", "镰刀工"),
+        description=SCYTHE_WORKER_STATS_DATA.get("description", ""),
+        stats=SCYTHE_WORKER_STATS_DATA,
+    )
+
+    # 注册忍者
+    register_character(
+        role_id="ninja",
+        character_class=Ninja,
+        display_name=NINJA_STATS_DATA.get("name", "忍者"),
+        description=NINJA_STATS_DATA.get("description", ""),
+        stats=NINJA_STATS_DATA,
+    )
+
+    # 注册机械师
+    register_character(
+        role_id="mechanic",
+        character_class=Mechanic,
+        display_name=MECHANIC_STATS_DATA.get("name", "机械师"),
+        description=MECHANIC_STATS_DATA.get("description", ""),
+        stats=MECHANIC_STATS_DATA,
+    )
+
+    # 注册卖光盘的
+    register_character(
+        role_id="disc_master",
+        character_class=DiscMaster,
+        display_name=DISC_MASTER_STATS_DATA.get("name", "卖光盘的"),
+        description=DISC_MASTER_STATS_DATA.get("description", ""),
+        stats=DISC_MASTER_STATS_DATA,
+    )
+
+    # 注册吃鸡大师
+    register_character(
+        role_id="chicken_master",
+        character_class=ChickenMaster,
+        display_name=CHICKEN_MASTER_STATS_DATA.get("name", "吃鸡大师"),
+        description=CHICKEN_MASTER_STATS_DATA.get("description", ""),
+        stats=CHICKEN_MASTER_STATS_DATA,
+    )
+
+    # 注册科学家
+    register_character(
+        role_id="scientist",
+        character_class=Scientist,
+        display_name=SCIENTIST_STATS_DATA.get("name", "科学家"),
+        description=SCIENTIST_STATS_DATA.get("description", ""),
+        stats=SCIENTIST_STATS_DATA,
     )
 
 
