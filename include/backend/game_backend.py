@@ -46,6 +46,7 @@ class GameBackend:
         self.state_binding_system = StateBindingSystem()
 
         self.initialize_block_system()
+        self._inject_systems_to_characters()
 
     def _inject_systems_to_characters(self):
         """将系统级实例注入需要它们的角色"""
