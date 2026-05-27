@@ -8,7 +8,7 @@
 - **可扩展插件架构**: 通过插件目录或 `setuptools` entry points 动态加载自定义角色
 - **多样化战斗机制**: 石头剪刀布决定先手，技能冷却、印记、控制、召唤物等机制
 - **多系统联动**: 双人判定系统、持续效果系统、状态绑定系统
-- **双端支持**: 命令行 CLI 模式 + PySide6/Pygame 图形客户端
+- **双端支持**: 命令行 CLI 模式 + PySide6 联网图形客户端
 - **配置驱动**: 通过 `default_config.json` 灵活调整游戏参数
 
 ## 快速开始
@@ -28,13 +28,28 @@ cd include
 python main.py
 ```
 
-### 图形客户端
+### 联网图形客户端
 
 ```bash
-python clientgui.py
+cd include
+python server.py --host 0.0.0.0 --port 50007
 ```
 
-图形客户端通过网络连接游戏服务器，支持石头剪刀布出拳交互与实时战况显示。
+另开终端启动客户端：
+
+```bash
+cd include
+python client.py --host 127.0.0.1 --port 50007
+```
+
+也可以直接传入连接信息：
+
+```bash
+cd include
+python client.py --host 127.0.0.1 --port 50007 --name 玩家1 --team 队伍A --character swordsman
+```
+
+当前联网服务端使用 JSON 消息协议，匹配的图形客户端是 `include/client.py`。仓库根目录的 `clientgui.py` 是旧文本协议客户端，不适用于当前 `include/server.py`。
 
 ### 游戏模式
 
@@ -68,6 +83,8 @@ python clientgui.py
 quanzhi/
 ├── include/                        # 游戏引擎核心包
 │   ├── main.py                     # 游戏主程序入口
+│   ├── server.py                   # 联网服务端
+│   ├── client.py                   # PySide6 联网图形客户端
 │   ├── core/                       # 核心基类模块
 │   │   ├── character.py            # 角色基类
 │   │   ├── skill.py                # 技能系统
@@ -92,7 +109,7 @@ quanzhi/
 │   └── config/                     # 配置模块
 │       ├── game_config.py          # 配置加载
 │       └── default_config.json     # 默认配置
-├── clientgui.py                    # PySide6/Pygame 图形客户端
+├── clientgui.py                    # 旧文本协议图形客户端
 ├── tests/                          # 自动化测试
 ├── CHARACTER_GUIDE.md              # 角色开发指南
 └── README.md                       # 本文件

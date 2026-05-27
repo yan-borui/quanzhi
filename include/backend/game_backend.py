@@ -675,6 +675,16 @@ class GameBackend:
             "actions": action_entries,
         }
 
+    def _is_action_executable(self, character, action: str) -> bool:
+        """检查动作是否出现在当前可执行动作列表中。"""
+        if not isinstance(action, str) or not action:
+            return False
+
+        for entry in self.get_action_context(character)["actions"]:
+            if entry["action"] == action and not entry["is_unavailable"]:
+                return True
+        return False
+
     def get_action_targets(self, character, action):
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
@@ -864,6 +874,9 @@ class GameBackend:
         target: Optional[Character] = None,
         selected_targets: Optional[List[Character]] = None,
     ) -> bool:
+        if not self._is_action_executable(character, action):
+            return False
+
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
 

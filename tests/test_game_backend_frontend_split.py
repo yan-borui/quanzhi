@@ -2,9 +2,15 @@
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "include"))
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "include"
+    ),
+)
 
 from characters.oil_master import OilMaster
+from characters.target import Target
 from core.player import Player
 from main import GameBackend
 
@@ -33,3 +39,39 @@ def test_backend_returns_structured_action_context():
     assert isinstance(context, dict)
     assert "actions" in context
     assert isinstance(context["actions"], list)
+
+
+def test_backend_rejects_skill_on_cooldown():
+    attacker = Target("攻击者")
+    defender = Target("防御者")
+    game = GameBackend([attacker, defender])
+    attacker.get_skill("平A").set_cooldown(3)
+
+    result = game.execute_player_action(attacker, "技能:平A", target=defender)
+
+    assert result is False
+    assert defender.current_hp == defender.max_hp
+
+
+def test_backend_rejects_action_not_available_while_controlled():
+    attacker = Target("攻击者")
+    defender = Target("防御者")
+    game = GameBackend([attacker, defender])
+    attacker.add_control("眩晕", 1)
+
+    result = game.execute_player_action(attacker, "技能:平A", target=defender)
+
+    assert result is False
+    assert defender.current_hp == defender.max_hp
+
+
+def test_backend_rejects_no_target_skill_on_cooldown():
+    oil_master = OilMaster()
+    target = Target("防御者")
+    game = GameBackend([oil_master, target])
+    oil_master.get_skill("一锅油").set_cooldown(3)
+
+    result = game.execute_player_action(oil_master, "技能:一锅油")
+
+    assert result is False
+    assert oil_master.oil_pot_count == 0
