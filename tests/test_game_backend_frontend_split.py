@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
+import random
 
 sys.path.insert(
     0,
@@ -9,8 +10,10 @@ sys.path.insert(
     ),
 )
 
+from characters.scholar import Scholar
 from characters.oil_master import OilMaster
 from characters.target import Target
+from characters.warlock import Warlock
 from core.player import Player
 from main import GameBackend
 
@@ -75,3 +78,72 @@ def test_backend_rejects_no_target_skill_on_cooldown():
 
     assert result is False
     assert oil_master.oil_pot_count == 0
+
+
+def test_molotov_uses_continuous_effect_system(monkeypatch):
+    scholar = Scholar("学者")
+    target = Target("目标")
+    game = GameBackend([scholar, target])
+
+    result = game.execute_player_action(scholar, "技能:燃烧瓶", target=target)
+    assert result is True
+    assert game.continuous_effect_system.get_block_effects(target.block_id)
+
+    choices = iter(["石头", "剪刀"])
+    monkeypatch.setattr(random, "choice", lambda _: next(choices))
+    before_hp = target.current_hp
+
+    game.start_round()
+
+    assert target.current_hp == before_hp - 3
+
+
+def test_continuous_effects_can_end_round_before_rps(monkeypatch):
+    scholar = Scholar("学者")
+    target = Target("目标")
+    target.set_current_hp(1)
+    game = GameBackend([scholar, target])
+    assert game.execute_player_action(scholar, "技能:燃烧瓶", target=target) is True
+
+    def fail_if_rps_runs(_):
+        raise AssertionError("RPS should not run after continuous effects end the game")
+
+    monkeypatch.setattr(random, "choice", fail_if_rps_runs)
+
+    round_data = game.start_round()
+
+    assert round_data["winner"] is None
+    assert target.is_alive() is False
+    assert "持续效果结算后游戏已结束。" in round_data["rps_logs"]
+
+
+def test_backend_control_removal_records_turn_log():
+    attacker = Target("攻击者")
+    defender = Target("防御者")
+    game = GameBackend([attacker, defender])
+    attacker.add_control("眩晕", 1)
+    attacker.start_new_turn_log()
+
+    result = game.execute_player_action(attacker, "行为:解控-眩晕")
+
+    assert result is True
+    assert not attacker.has_control("眩晕")
+    assert attacker.turn_effects_history[-1]["control_remove"]["眩晕"] == 1
+
+
+def test_warlock_explosion_uses_backend_control_removal():
+    warlock = Warlock("术士")
+    target = Target("目标")
+    game = GameBackend([warlock, target])
+    target.add_control("死亡之门", 1)
+    target.start_new_turn_log()
+    warlock._death_gate_active = True
+    warlock._death_gate_initial_count = 1
+
+    result = game.execute_player_action(warlock, "技能:爆炸")
+
+    assert result is True
+    assert not target.has_control("死亡之门")
+    assert target.turn_effects_history[-1]["control_remove"]["死亡之门"] == 1
+    assert warlock._death_gate_active is False
+    assert warlock.get_skill("死亡之门").get_cooldown() == 2

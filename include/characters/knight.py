@@ -13,7 +13,10 @@ class Knight(Character):
         super().__init__(name, max_hp=60, control={}, stealth=0)
         self._initialize_skills()
         self.shield_charges = 5  # 盾技能使用次数
-        self.state_history = [self._capture_state(), self._capture_state()]  # 存储最近三回合的状态
+        self.state_history = [
+            self._capture_state(),
+            self._capture_state(),
+        ]  # 存储最近三回合的状态
         self.max_history_size = 3  # 最大历史状态数量
 
         # 轮次与窗口控制
@@ -81,7 +84,9 @@ class Knight(Character):
         if success:
             print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
-    def _fearless_charge_effect(self, caster: Character, target: Optional[Character]) -> bool:
+    def _fearless_charge_effect(
+        self, caster: Character, target: Optional[Character]
+    ) -> bool:
         if not target:
             return False
         target.take_damage(self.apply_attack_buff(12))
@@ -137,16 +142,18 @@ class Knight(Character):
             "heal": 0,
             "control_add": {},
             "control_remove": {},
-            "imprint_add": {}
+            "imprint_add": {},
         }
 
-        print(f"{self.name} 使用盾，抵消了上一回合的伤害、控制与新增印记！ (返还{dmg}伤害)")
+        print(
+            f"{self.name} 使用盾，抵消了上一回合的伤害、控制与新增印记！ (返还{dmg}伤害)"
+        )
         print(f"盾技能剩余使用次数: {self.shield_charges}")
         return True
 
     def on_turn_start(self):
         """每回合开始时调用，记录当前状态，并管理盾使用窗口"""
-        super().on_turn_start()  # 先结算燃烧瓶/火阵等通用持续效果
+        super().on_turn_start()  # 先结算火阵等角色自身回合状态
 
         # 管理“死亡后一回合”窗口过期
         if (
@@ -157,7 +164,9 @@ class Knight(Character):
             self.expire_death_shield_window()
 
         # 检查控制状态转变（无控 -> 有控）
-        prev_control = bool(self.state_history[-1]["control"]) if self.state_history else False
+        prev_control = (
+            bool(self.state_history[-1]["control"]) if self.state_history else False
+        )
         current_control = bool(self.control)
 
         if (not prev_control) and current_control:
@@ -185,7 +194,7 @@ class Knight(Character):
             "current_hp": self.current_hp,
             "control": copy.deepcopy(self.control),
             "imprints": copy.deepcopy(self.imprints),
-            "accumulations": copy.deepcopy(self.accumulations)
+            "accumulations": copy.deepcopy(self.accumulations),
         }
 
     def _restore_state(self, state: Dict):
@@ -214,7 +223,9 @@ class Knight(Character):
 
         return was_alive and was_free
 
-    def on_behavior_change(self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]):
+    def on_behavior_change(
+        self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
+    ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
             print(f"{self.name} 举盾冲锋！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
@@ -226,7 +237,9 @@ class Knight(Character):
         """重置战斗回合状态（每局开始调用）"""
         self.shield_charges = 5
         current_state = self._capture_state()
-        self.state_history = [current_state.copy() for _ in range(self.max_history_size)]
+        self.state_history = [
+            current_state.copy() for _ in range(self.max_history_size)
+        ]
         self.death_shield_window_active = False
         self.death_shield_window_round = None
         self.control_shield_window_open = False
@@ -246,12 +259,12 @@ class Knight(Character):
             print(f"{self.name} 失去死亡后盾的机会！")
         self.death_shield_window_active = False
         self.death_shield_window_round = None
-    
+
     def on_death_event(self, current_round: int):
         """角色死亡时的事件处理（供Game调用）"""
         # 死亡发生在当前回合，下一回合（current_round + 1）是唯一可用盾的窗口
         self.open_death_shield_window(current_round + 1)
-    
+
     def on_revive_event(self):
         """角色复活时的事件处理（供Game调用）"""
         # 骑士已复活，关闭死亡窗口
@@ -265,7 +278,7 @@ KNIGHT_SKILLS_DATA = {
         "damage": 12,
         "effect": "无控制效果",
         "range": "任意",
-        "description": "高伤害冲锋技能"
+        "description": "高伤害冲锋技能",
     },
     "斩": {
         "name": "斩",
@@ -273,7 +286,7 @@ KNIGHT_SKILLS_DATA = {
         "damage": 3,
         "effect": "无控制效果",
         "range": "近程",
-        "description": "基础攻击技能，无冷却"
+        "description": "基础攻击技能，无冷却",
     },
     "盾": {
         "name": "盾",
@@ -281,8 +294,8 @@ KNIGHT_SKILLS_DATA = {
         "damage": 0,
         "effect": "抵消上一回合的伤害与控制（不影响位置和行为）",
         "requirement": "每局只能使用5次，可在被控或死后使用",
-        "description": "防御性技能，可以抵消上一回合所受伤害与控制"
-    }
+        "description": "防御性技能，可以抵消上一回合所受伤害与控制",
+    },
 }
 
 KNIGHT_STATS_DATA = {
@@ -291,5 +304,5 @@ KNIGHT_STATS_DATA = {
     "control": {},
     "stealth": 0,
     "role_type": "防御型战士",
-    "description": "拥有强大防御能力和状态抵消能力的近战角色"
+    "description": "拥有强大防御能力和状态抵消能力的近战角色",
 }

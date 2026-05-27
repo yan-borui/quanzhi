@@ -14,6 +14,7 @@ from characters.scythe_worker import ScytheWorker
 from characters.ninja import Ninja
 from characters.chicken_master import ChickenMaster
 from characters.scientist import Scientist, MiniRobot
+from characters.scholar import Scholar
 
 # 导入配置系统
 from config.game_config import get_game_config
@@ -56,6 +57,8 @@ class GameBackend:
             if isinstance(char, Ninja):
                 char.set_state_binding_system(self.state_binding_system)
                 char.set_dual_judgment_system(self.dual_judgment_system)
+            if isinstance(char, Scholar):
+                char.set_continuous_effect_system(self.continuous_effect_system)
 
     def initialize_block_system(self):
         for char in self.all_characters:
@@ -139,8 +142,20 @@ class GameBackend:
             if hasattr(char, "on_turn_start"):
                 char.on_turn_start()
 
+        self._trigger_continuous_effects()
+        self.update_alive_characters()
+
         self.reduce_all_cooldowns()
-        rps_result = self.rock_paper_scissors()
+        real_alive = [
+            c for c in self.alive_characters if not getattr(c, "is_mini_robot", False)
+        ]
+        if len(real_alive) <= 1:
+            rps_result = {
+                "winner": None,
+                "logs": ["=== 石头剪刀布环节 ===", "持续效果结算后游戏已结束。"],
+            }
+        else:
+            rps_result = self.rock_paper_scissors()
 
         return {
             "round_count": self.round_count,
@@ -206,6 +221,16 @@ class GameBackend:
             "success": True,
             "message": f"{character.name} 移动到块 {target_block_id}",
         }
+
+    def _trigger_continuous_effects(self):
+        for char in list(self.all_characters):
+            self.continuous_effect_system.trigger_all_effects(char)
+
+        blocks = {}
+        for char in self.all_characters:
+            blocks.setdefault(char.block_id, []).append(char)
+        for block_id, members in blocks.items():
+            self.continuous_effect_system.trigger_block_effects(block_id, members)
 
     def rebuild_all_nearby_lists(self):
         blocks = {}
@@ -324,6 +349,11 @@ class GameBackend:
 
         if not participants:
             return {"winner": None, "logs": logs}
+
+        if len(participants) == 1:
+            winner = participants[0]
+            logs.append(f"{winner.name} 是唯一可行动角色。")
+            return {"winner": winner, "logs": logs}
 
         winner = self._resolve_rps_winner(participants, logs)
         return {"winner": winner, "logs": logs}
@@ -926,7 +956,9 @@ class GameBackend:
             # --- 术士多目标技能 ---
             if skill_name == "爆炸" and isinstance(character, Warlock):
                 return self._execute_silently(
-                    character.use_explosion_on_targets, targets
+                    character.use_explosion_on_targets,
+                    targets,
+                    self._remove_control_from_character,
                 )
 
             if skill_name == "死亡之门" and isinstance(character, Warlock):
@@ -962,12 +994,7 @@ class GameBackend:
 
             if behavior.startswith("解控-"):
                 control_name = behavior.replace("解控-", "").strip()
-                if control_name in character.control:
-                    del character.control[control_name]
-                    # 通知相关角色控制已解除（镰刀工/忍者绑定联动）
-                    self._notify_control_removal(character, control_name)
-                    return True
-                return False
+                return self._remove_control_from_character(character, control_name)
 
             # 搜索隐身忍者
             if behavior.startswith("搜索-"):
@@ -1021,6 +1048,16 @@ class GameBackend:
         # 当死亡之门被解除时，检查是否所有死亡之门都已清空
         if control_name == "死亡之门":
             self._check_death_gate_cleared()
+
+    def _remove_control_from_character(
+        self, target: Character, control_name: str
+    ) -> bool:
+        if not target.has_control(control_name):
+            return False
+
+        target.clear_control(control_name)
+        self._notify_control_removal(target, control_name)
+        return True
 
     def _check_death_gate_cleared(self):
         """检查场上是否还有死亡之门；若全部清除，重置术士状态并设置2回合冷却。"""

@@ -21,26 +21,10 @@ Character 抽象基类
 
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
-from threading import Lock
 from core.skill import Skill
 from core.behavior import BehaviorType
 
-HARMLESS_CONTROLS = {"护盾", "风阵", "燃烧瓶", "火阵", "飞镰"}
-
-BURNING_BLOCKS: Dict[int, int] = {}
-BURNING_BLOCKS_LOCK = Lock()
-
-
-def add_burning_block(block_id: int, stacks: int = 1):
-    if stacks <= 0:
-        return
-    with BURNING_BLOCKS_LOCK:
-        BURNING_BLOCKS[block_id] = BURNING_BLOCKS.get(block_id, 0) + stacks
-
-
-def get_burning_block_stacks(block_id: int) -> int:
-    with BURNING_BLOCKS_LOCK:
-        return BURNING_BLOCKS.get(block_id, 0)
+HARMLESS_CONTROLS = {"护盾", "风阵", "火阵", "飞镰"}
 
 
 class Character(ABC):
@@ -102,7 +86,7 @@ class Character(ABC):
 
     def is_controlled(self) -> bool:
         """检查角色是否被控制（有控制效果）"""
-        # 护盾/风阵/燃烧瓶/火阵不阻止行动
+        # 护盾/风阵/火阵/飞镰不阻止行动
         return any(k not in HARMLESS_CONTROLS for k in self.control.keys())
 
     # 带目标的技能使用（可选实现）
@@ -449,11 +433,8 @@ class Character(ABC):
         return self.is_alive() and self.stealth <= 0
 
     def on_turn_start(self):
-        """基础回合开始逻辑：处理通用持续效果"""
-        # 持续伤害：燃烧瓶每层3点，火阵每层2点
-        burning_stacks = get_burning_block_stacks(self.block_id)
-        if burning_stacks > 0:
-            self.take_damage(3 * burning_stacks)
+        """基础回合开始逻辑：处理角色自身状态造成的回合伤害。"""
+        # 地块类持续效果由 ContinuousEffectSystem 处理。
         if self.has_control("火阵"):
             self.take_damage(2 * self.get_control("火阵"))
 

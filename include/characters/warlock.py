@@ -11,7 +11,7 @@
 - 六星法阵 (CD:2) — 施加控制
 """
 
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 from core.behavior import BehaviorType
 from core.character import Character
@@ -91,7 +91,11 @@ class Warlock(Character):
         # 不在此处设置CD，待所有死亡之门解除后由外部设置CD=2
         return True
 
-    def use_explosion_on_targets(self, targets: List[Character]) -> bool:
+    def use_explosion_on_targets(
+        self,
+        targets: List[Character],
+        remove_control: Optional[Callable[[Character, str], bool]] = None,
+    ) -> bool:
         """爆炸：对所有携带死亡之门的目标造成伤害（12/初始分门人数），爆炸后解除所有死亡之门。"""
         skill = self.get_skill("爆炸")
         if not skill:
@@ -117,9 +121,13 @@ class Warlock(Character):
         )
         for target in targets:
             target.take_damage(damage_per_target)
-            # 解除该目标的死亡之门
-            target.control.pop("死亡之门", None)
-            print(f"{target.get_name()} 的死亡之门已解除！")
+            if remove_control is not None:
+                removed = remove_control(target, "死亡之门")
+            else:
+                removed = target.has_control("死亡之门")
+                target.clear_control("死亡之门")
+            if removed:
+                print(f"{target.get_name()} 的死亡之门已解除！")
 
         # 清空死亡之门状态，设置2回合冷却
         self._death_gate_active = False
