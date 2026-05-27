@@ -5,15 +5,14 @@ import io
 from contextlib import redirect_stdout
 from typing import List, Optional
 from core.character import Character
+from core.event_log import emit, silence_events
 from characters.knight import Knight
-from characters.summoner import Summoner
-from characters.swordsman import Swordsman
 from characters.oil_master import OilMaster
 from characters.warlock import Warlock
 from characters.scythe_worker import ScytheWorker
 from characters.ninja import Ninja
 from characters.chicken_master import ChickenMaster
-from characters.scientist import Scientist, MiniRobot
+from characters.scientist import Scientist
 from characters.scholar import Scholar
 
 # 导入配置系统
@@ -27,8 +26,6 @@ from factory.character_selection import quick_select_default_characters
 from systems.dual_judgment import DualJudgmentSystem
 from systems.continuous_effect import ContinuousEffectSystem
 from systems.state_binding import StateBindingSystem
-
-from core.character import HARMLESS_CONTROLS
 
 
 class GameBackend:
@@ -292,8 +289,10 @@ class GameBackend:
                 status_info.append(f"控制:{list(char.control.keys())}")
             if char.imprints:
                 status_info.append(f"印记:{char.imprints}")
-            if char.accumulations:
-                status_info.append(f"积累:{char.accumulations}")
+            if char.resources:
+                status_info.append(f"资源:{char.resources}")
+            if char.modifiers:
+                status_info.append(f"战斗修正:{char.modifiers}")
             if isinstance(char, Knight) and hasattr(char, "shield_charges"):
                 status_info.append(f"盾次数:{char.shield_charges}")
             if isinstance(char, ChickenMaster):
@@ -399,242 +398,27 @@ class GameBackend:
 
     def get_available_actions(self, character):
         actions = []
-        active_controls = [
-            k for k in character.control.keys() if k not in HARMLESS_CONTROLS
-        ]
+        active_controls = character.get_blocking_controls()
 
         if active_controls:
-            if isinstance(character, Knight) and character.can_use_shield():
-                actions.append("技能:盾")
+            actions.extend(character.available_when_controlled_actions(self))
             for control_name in active_controls:
                 actions.append(f"行为:解控-{control_name}")
-            harmless_to_clear = HARMLESS_CONTROLS.intersection(
-                character.control.keys()
-            ) - set(active_controls)
-            for control_name in harmless_to_clear:
+            for control_name in character.get_non_blocking_controls():
                 actions.append(f"行为:解控-{control_name}")
             return actions
 
         if not character.is_alive():
-            if isinstance(character, Knight) and character.can_use_shield():
-                actions.append("技能:盾")
-            return actions
+            return character.available_when_defeated_actions(self)
 
         for skill_name, skill in character.skills.items():
-            if skill_name == "盾" and isinstance(character, Knight):
-                if character.can_use_shield():
-                    actions.append(f"技能:{skill_name}")
-                else:
-                    if character.shield_charges <= 0:
-                        actions.append(f"技能:{skill_name}(无次数)")
-                    elif len(character.state_history) < 2:
-                        actions.append(f"技能:{skill_name}(历史不足)")
-                    else:
-                        actions.append(f"技能:{skill_name}(不可用)")
-                continue
-
-            if skill_name == "齐攻" and isinstance(character, Summoner):
-                wolf_accum = character.get_accumulation("狼")
-                bear_accum = character.get_accumulation("熊")
-                if wolf_accum >= 6 or bear_accum >= 6:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(
-                        f"技能:{skill_name}(积累不足:狼{wolf_accum}/熊{bear_accum})"
-                    )
-                continue
-
-            if skill_name == "闪电劈" and isinstance(character, Swordsman):
-                has_valid_target = any(
-                    char.get_imprint("剑意") >= 3
-                    for char in self.alive_characters
-                    if char != character
-                )
-                if has_valid_target:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无有效目标)")
-                continue
-
-            if skill_name == "无敌刺" and isinstance(character, Swordsman):
-                valid_targets = [
-                    char
-                    for char in self.alive_characters
-                    if char != character
-                    and char.has_control("lightning_strike")
-                    and id(char) not in character.invincible_strike_used
-                ]
-                if valid_targets:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无有效目标)")
-                continue
-
-            # --- 术士特殊技能 ---
-            if skill_name == "爆炸" and isinstance(character, Warlock):
-                death_gate_targets = [
-                    c
-                    for c in self.alive_characters
-                    if c != character and c.has_control("死亡之门")
-                ]
-                if death_gate_targets:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无死亡之门)")
-                continue
-
-            if skill_name == "死亡之门" and isinstance(character, Warlock):
-                if character._death_gate_active:
-                    actions.append(f"技能:{skill_name}(激活中)")
-                else:
-                    gate_targets = [
-                        c
-                        for c in self.alive_characters
-                        if c != character and c.is_targetable()
-                    ]
-                    if gate_targets:
-                        if skill.is_available():
-                            actions.append(f"技能:{skill_name}")
-                        else:
-                            actions.append(
-                                f"技能:{skill_name}(CD:{skill.get_cooldown()})"
-                            )
-                    else:
-                        actions.append(f"技能:{skill_name}(无有效目标)")
-                continue
-
-            # --- 镰刀工特殊技能 ---
-            if skill_name == "飞镰斩" and isinstance(character, ScytheWorker):
-                slash_targets = [
-                    c
-                    for c in self.alive_characters
-                    if c.has_control("飞镰") and c.is_targetable()
-                ]
-                if slash_targets:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无飞镰目标)")
-                continue
-
-            if skill_name == "黑暗飞镰" and isinstance(character, ScytheWorker):
-                dark_target = character._dark_scythe_target
-                if dark_target and dark_target.is_alive():
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无飞镰斩)")
-                continue
-
-            if skill_name == "挥镰" and isinstance(character, ScytheWorker):
-                swing_targets = [
-                    c
-                    for c in self.alive_characters
-                    if (c is character or c.is_targetable())
-                    and id(c) not in character._swing_controlled_targets
-                ]
-                if swing_targets:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无有效目标)")
-                continue
-
-            # --- 忍者特殊技能 ---
-            if skill_name == "摔" and isinstance(character, Ninja):
-                bound_target = character.state_binding_system.get_bound_target(
-                    character, "铁索覆身"
-                )
-                if (
-                    bound_target
-                    and bound_target.has_control("铁索覆身")
-                    and bound_target.is_alive()
-                ):
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(无铁索目标)")
-                continue
-
-            if skill_name == "偷袭" and isinstance(character, Ninja):
-                if character.in_stealth:
-                    if skill.is_available():
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                else:
-                    actions.append(f"技能:{skill_name}(需隐身)")
-                continue
-
-            # --- 科学家特殊技能 ---
-            if isinstance(character, Scientist):
-                # 机器人模式下只能使用撸和机器人自爆
-                if character.in_robot_mode and skill_name not in ("撸", "机器人自爆"):
-                    actions.append(f"技能:{skill_name}(机器人模式不可用)")
-                    continue
-
-                if skill_name == "制造机器人":
-                    if character.battery_count >= 4:
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(
-                            f"技能:{skill_name}(电池不足:{character.battery_count}/4)"
-                        )
-                    continue
-
-                if skill_name == "撸":
-                    if character.robot_count >= 1:
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(无机器人)")
-                    continue
-
-                if skill_name == "机器人自爆":
-                    if character.robot_count >= 1:
-                        actions.append(f"技能:{skill_name}")
-                    else:
-                        actions.append(f"技能:{skill_name}(无机器人)")
-                    continue
-
-            # --- 吃鸡大师：空投为自身技能 ---
-            if skill_name == "空投" and isinstance(character, ChickenMaster):
-                if skill.is_available():
-                    actions.append(f"技能:{skill_name}")
-                else:
-                    actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
-                continue
-
-            if skill.is_available():
-                actions.append(f"技能:{skill_name}")
-            else:
-                actions.append(f"技能:{skill_name}(CD:{skill.get_cooldown()})")
+            actions.append(character.describe_skill_action(skill_name, skill, self))
 
         actions.append("行为:到你身边")
         actions.append("行为:离你远点")
 
-        for control_name in character.control.keys():
-            if control_name in HARMLESS_CONTROLS:
-                actions.append(f"行为:解控-{control_name}")
+        for control_name in character.get_non_blocking_controls():
+            actions.append(f"行为:解控-{control_name}")
 
         # 搜索隐身角色（忍者忍法地心）
         stealthed_chars = [
@@ -693,6 +477,8 @@ class GameBackend:
             "max_hp": character.max_hp,
             "controls": list(character.control.keys()),
             "imprints": character.imprints.copy() if character.imprints else {},
+            "resources": character.resources.copy() if character.resources else {},
+            "modifiers": character.modifiers.copy() if character.modifiers else {},
             "accumulations": (
                 character.accumulations.copy() if character.accumulations else {}
             ),
@@ -939,7 +725,7 @@ class GameBackend:
                             self.all_characters.append(robot)
                             if robot.is_alive():
                                 self.alive_characters.append(robot)
-                            print(f"小机器人 [{robot.name}] 加入战场！")
+                            emit(f"小机器人 [{robot.name}] 加入战场！")
                     return True
                 if skill_name == "忍法地心" and isinstance(character, Ninja):
                     self._execute_silently(character.use_skill, skill_name)
@@ -1018,7 +804,7 @@ class GameBackend:
 
     @staticmethod
     def _execute_silently(func, *args, **kwargs):
-        with redirect_stdout(io.StringIO()):
+        with silence_events(), redirect_stdout(io.StringIO()):
             return func(*args, **kwargs)
 
     def get_dual_judgment_system(self) -> DualJudgmentSystem:

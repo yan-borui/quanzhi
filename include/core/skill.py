@@ -14,12 +14,17 @@ Skill 类
 - 增加了施法者和目标参数，使技能能够影响具体角色
 """
 
+from core.event_log import emit
 from typing import Callable, Optional, Any
 
 
 class Skill:
-    def __init__(self, name: str = "", cooldown: int = 0,
-                 effect: Optional[Callable[[Any, Optional[Any]], bool]] = None):
+    def __init__(
+        self,
+        name: str = "",
+        cooldown: int = 0,
+        effect: Optional[Callable[[Any, Optional[Any]], bool]] = None,
+    ):
         self.name = name
         self.base_cooldown = max(0, cooldown)
         self.cooldown = 0
@@ -71,7 +76,7 @@ class Skill:
     # 返回是否成功施放
     def execute_with_target(self, caster: Any, target: Optional[Any]) -> bool:
         if not self.is_available():
-            print(f"技能 {self.name} 在冷却中 (CD:{self.cooldown})")
+            emit(f"技能 {self.name} 在冷却中 (CD:{self.cooldown})")
             return False
 
         success = True
@@ -81,10 +86,10 @@ class Skill:
             success = self.effect(caster, target)
         else:
             # 默认效果：只是打印信息
-            print(f"{caster.get_name()} 施放了技能: {self.name}", end="")
+            emit(f"{caster.get_name()} 施放了技能: {self.name}", end="")
             if target:
-                print(f" 目标: {target.get_name()}", end="")
-            print()
+                emit(f" 目标: {target.get_name()}", end="")
+            emit()
 
         # 只有施放成功才进入冷却
         if success:

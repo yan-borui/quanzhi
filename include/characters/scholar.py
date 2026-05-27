@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # scholar.py
+from core.event_log import emit
 from typing import Optional
 
 from core.character import Character
@@ -38,16 +39,16 @@ class Scholar(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
     def _star_ray_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:

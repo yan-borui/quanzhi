@@ -11,6 +11,7 @@
 - 六星法阵 (CD:2) — 施加控制
 """
 
+from core.event_log import emit
 from typing import Optional, List, Callable
 
 from core.behavior import BehaviorType
@@ -53,40 +54,63 @@ class Warlock(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        if skill_name == "爆炸":
+            death_gate_targets = [
+                c
+                for c in battle.alive_characters
+                if c != self and c.has_control("死亡之门")
+            ]
+            if death_gate_targets:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无死亡之门")
+
+        if skill_name == "死亡之门":
+            if self._death_gate_active:
+                return self.format_skill_action(skill_name, skill, "激活中")
+            gate_targets = [
+                c for c in battle.alive_characters if c != self and c.is_targetable()
+            ]
+            if gate_targets:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无有效目标")
+
+        return super().describe_skill_action(skill_name, skill, battle)
 
     def use_death_gate_on_targets(self, targets: List[Character]) -> bool:
         """死亡之门：对玩家选中的目标施加控制，每个目标均需独立解控"""
         skill = self.get_skill("死亡之门")
         if not skill:
-            print(f"{self.name} 没有技能: 死亡之门")
+            emit(f"{self.name} 没有技能: 死亡之门")
             return False
         if not skill.is_available():
-            print(f"技能 死亡之门 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 死亡之门 在冷却中 (CD:{skill.get_cooldown()})")
             return False
         if self._death_gate_active:
-            print("场上已有死亡之门激活，无法再次使用！")
+            emit("场上已有死亡之门激活，无法再次使用！")
             return False
         if not targets:
-            print("死亡之门没有有效目标！")
+            emit("死亡之门没有有效目标！")
             return False
 
         self._death_gate_initial_count = len(targets)
         self._death_gate_active = True
 
-        print(f"{self.name} 使用了 死亡之门！")
+        emit(f"{self.name} 使用了 死亡之门！")
         for target in targets:
             target.add_control("死亡之门", 1)
-            print(f"{target.get_name()} 被死亡之门束缚，需独立解控！")
+            emit(f"{target.get_name()} 被死亡之门束缚，需独立解控！")
 
         # 不在此处设置CD，待所有死亡之门解除后由外部设置CD=2
         return True
@@ -99,13 +123,13 @@ class Warlock(Character):
         """爆炸：对所有携带死亡之门的目标造成伤害（12/初始分门人数），爆炸后解除所有死亡之门。"""
         skill = self.get_skill("爆炸")
         if not skill:
-            print(f"{self.name} 没有技能: 爆炸")
+            emit(f"{self.name} 没有技能: 爆炸")
             return False
         if not skill.is_available():
-            print(f"技能 爆炸 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 爆炸 在冷却中 (CD:{skill.get_cooldown()})")
             return False
         if not targets:
-            print("爆炸：场上没有携带死亡之门的目标！")
+            emit("爆炸：场上没有携带死亡之门的目标！")
             return False
 
         initial_count = (
@@ -116,7 +140,7 @@ class Warlock(Character):
         base_damage = max(1, 12 // initial_count)
         damage_per_target = self.apply_attack_buff(base_damage)
 
-        print(
+        emit(
             f"{self.name} 使用了 爆炸！初始分门{initial_count}人，每人受到{damage_per_target}点伤害"
         )
         for target in targets:
@@ -127,7 +151,7 @@ class Warlock(Character):
                 removed = target.has_control("死亡之门")
                 target.clear_control("死亡之门")
             if removed:
-                print(f"{target.get_name()} 的死亡之门已解除！")
+                emit(f"{target.get_name()} 的死亡之门已解除！")
 
         # 清空死亡之门状态，设置2回合冷却
         self._death_gate_active = False
@@ -166,7 +190,7 @@ class Warlock(Character):
         if not target:
             return False
         target.add_control("死亡之门", 1)
-        print(f"{target.get_name()} 被死亡之门束缚，需独立解控！")
+        emit(f"{target.get_name()} 被死亡之门束缚，需独立解控！")
         return True
 
     def _explosion_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -187,11 +211,11 @@ class Warlock(Character):
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 念动咒语向前逼近！")
+            emit(f"{self.name} 念动咒语向前逼近！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 释放暗能后撤！")
+            emit(f"{self.name} 释放暗能后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 以黑暗之力挣脱束缚！")
+            emit(f"{self.name} 以黑暗之力挣脱束缚！")
 
 
 WARLOCK_SKILLS_DATA = {

@@ -19,6 +19,7 @@
 - 机器人模式下没有机器人后真正死亡
 """
 
+from core.event_log import emit
 from typing import Optional, List
 
 from core.behavior import BehaviorType
@@ -39,7 +40,7 @@ class MiniRobot(Character):
         pass
 
     def on_destroy(self):
-        print(f"机器人 {self.name} 被摧毁！")
+        emit(f"机器人 {self.name} 被摧毁！")
 
 
 class Scientist(Character):
@@ -81,7 +82,7 @@ class Scientist(Character):
     @property
     def battery_count(self) -> int:
         """当前电池数量"""
-        return self.get_accumulation("电池")
+        return self.get_resource("电池")
 
     @property
     def robot_count(self) -> int:
@@ -107,40 +108,58 @@ class Scientist(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         # 机器人模式下只能使用撸和机器人自爆
         if self._in_robot_mode:
             if skill_name not in ("撸", "机器人自爆"):
-                print(f"{self.name} 处于机器人模式，只能使用撸或机器人自爆！")
+                emit(f"{self.name} 处于机器人模式，只能使用撸或机器人自爆！")
                 return
 
         # 制造机器人需要至少4个电池
         if skill_name == "制造机器人":
             if self.battery_count < 4:
-                print(f"制造机器人需要至少4个电池！当前电池: {self.battery_count}")
+                emit(f"制造机器人需要至少4个电池！当前电池: {self.battery_count}")
                 return
 
         # 撸需要至少1个机器人
         if skill_name == "撸":
             if self.robot_count < 1:
-                print(f"撸需要至少1个机器人！当前机器人: {self.robot_count}")
+                emit(f"撸需要至少1个机器人！当前机器人: {self.robot_count}")
                 return
 
         # 机器人自爆需要至少1个机器人
         if skill_name == "机器人自爆":
             if self.robot_count < 1:
-                print(f"机器人自爆需要至少1个机器人！当前机器人: {self.robot_count}")
+                emit(f"机器人自爆需要至少1个机器人！当前机器人: {self.robot_count}")
                 return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        if self._in_robot_mode and skill_name not in ("撸", "机器人自爆"):
+            return self.format_skill_action(skill_name, skill, "机器人模式不可用")
+
+        if skill_name == "制造机器人":
+            if self.battery_count >= 4:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(
+                skill_name, skill, f"电池不足:{self.battery_count}/4"
+            )
+
+        if skill_name in ("撸", "机器人自爆"):
+            if self.robot_count >= 1:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无机器人")
+
+        return super().describe_skill_action(skill_name, skill, battle)
 
     # --- 技能效果函数 ---
 
@@ -152,7 +171,7 @@ class Scientist(Character):
             return False
         target.take_damage(self.apply_attack_buff(12))
         target.add_control("高压电池", 1)
-        print(f"{target.get_name()} 被高压电池击中，陷入麻痹！")
+        emit(f"{target.get_name()} 被高压电池击中，陷入麻痹！")
         return True
 
     def _burning_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -164,8 +183,8 @@ class Scientist(Character):
 
     def _battery_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """电池：电池+1"""
-        self.add_accumulation("电池", 1)
-        print(f"{self.name} 制造了1个电池，当前电池: {self.battery_count}")
+        self.add_resource("电池", 1)
+        emit(f"{self.name} 制造了1个电池，当前电池: {self.battery_count}")
         return True
 
     def _build_robot_effect(
@@ -173,15 +192,15 @@ class Scientist(Character):
     ) -> bool:
         """制造机器人：消耗4个电池，创建一个命名小机器人"""
         # 消耗4个电池
-        self.reduce_accumulation("电池", 4)
-        print(f"{self.name} 消耗了4个电池，剩余电池: {self.battery_count}")
+        self.reduce_resource("电池", 4)
+        emit(f"{self.name} 消耗了4个电池，剩余电池: {self.battery_count}")
 
         # 使用预设名称或自动生成名称
         name = self._pending_robot_name or f"机器人{len(self._named_robots) + 1}"
         self._pending_robot_name = None
         robot = MiniRobot(name, owner=self)
         self._named_robots.append(robot)
-        print(
+        emit(
             f"{self.name} 制造了小机器人 [{robot.name}]！当前机器人: {self.robot_count}"
         )
         return True
@@ -195,7 +214,7 @@ class Scientist(Character):
             return False
         n = self.robot_count
         damage = 3 * n
-        print(f"{self.name} 操控 {n} 个机器人撸击！伤害: {damage}")
+        emit(f"{self.name} 操控 {n} 个机器人撸击！伤害: {damage}")
         target.take_damage(self.apply_attack_buff(damage))
         return True
 
@@ -210,17 +229,17 @@ class Scientist(Character):
             return False
         n = self.robot_count
         damage = 15 * n
-        print(f"{self.name} 引爆了 {n} 个机器人自爆！伤害: {damage}")
+        emit(f"{self.name} 引爆了 {n} 个机器人自爆！伤害: {damage}")
         # 摧毁所有命名机器人
         for robot in self._named_robots:
             if robot.is_alive():
                 robot.current_hp = 0
-                print(f"机器人 {robot.name} 在自爆中被摧毁！")
+                emit(f"机器人 {robot.name} 在自爆中被摧毁！")
         target.take_damage(self.apply_attack_buff(damage))
 
         # 如果在机器人模式下自爆后没有机器人了，真正死亡
         if self._in_robot_mode and self.robot_count <= 0:
-            print(f"{self.name} 的最后一批机器人自爆了，科学家真正阵亡！")
+            emit(f"{self.name} 的最后一批机器人自爆了，科学家真正阵亡！")
             self._in_robot_mode = False
             self.current_hp = 0
             super().on_destroy()
@@ -237,7 +256,7 @@ class Scientist(Character):
             # 复活到机器人上，以1HP存活（标记状态）
             self.current_hp = 1
             self.max_hp = 1
-            print(
+            emit(
                 f"{self.name} 死亡！但转移到了机器人上！"
                 f"当前机器人: {self.robot_count}，只能使用撸或机器人自爆！"
             )
@@ -259,20 +278,20 @@ class Scientist(Character):
             # 单次护盾效果
             if self.has_control("护盾"):
                 self.clear_control("护盾")
-                print(f"{self.name} 的护盾抵消了这次攻击！")
+                emit(f"{self.name} 的护盾抵消了这次攻击！")
                 return
 
             # 摧毁第一个存活的命名机器人
             for robot in self._named_robots:
                 if robot.is_alive():
                     robot.current_hp = 0
-                    print(
+                    emit(
                         f"{self.name}（机器人模式）受到攻击，机器人 [{robot.name}] 被摧毁！"
                         f"剩余机器人: {self.robot_count}"
                     )
                     break
             if self.robot_count <= 0:
-                print(f"{self.name} 的所有机器人被摧毁，科学家真正阵亡！")
+                emit(f"{self.name} 的所有机器人被摧毁，科学家真正阵亡！")
                 self._in_robot_mode = False
                 self.current_hp = 0
                 super().on_destroy()
@@ -285,29 +304,27 @@ class Scientist(Character):
         new_behavior: Optional[BehaviorType],
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 操控机器人向前推进！")
+            emit(f"{self.name} 操控机器人向前推进！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 启动反重力装置后撤！")
+            emit(f"{self.name} 启动反重力装置后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 用电磁脉冲挣脱束缚！")
+            emit(f"{self.name} 用电磁脉冲挣脱束缚！")
 
     def reset_battle_round(self):
         """新一局重置：清除电池和所有命名机器人"""
-        self.clear_accumulation("电池")
+        self.clear_resource("电池")
         for robot in self._named_robots:
             robot.current_hp = 0
         self._named_robots.clear()
         self._pending_robot_name = None
         self._in_robot_mode = False
-        print(f"{self.name} 准备就绪，所有状态已重置")
+        emit(f"{self.name} 准备就绪，所有状态已重置")
 
     def display_status(self):
         """显示科学家状态，额外显示机器人模式信息"""
         super().display_status()
         if self._in_robot_mode:
-            print(
-                f"[机器人模式] 机器人数量: {self.robot_count}，只能使用撸或机器人自爆"
-            )
+            emit(f"[机器人模式] 机器人数量: {self.robot_count}，只能使用撸或机器人自爆")
 
 
 SCIENTIST_SKILLS_DATA = {

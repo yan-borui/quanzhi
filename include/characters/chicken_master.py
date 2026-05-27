@@ -16,6 +16,7 @@
 - 非常用角色（否），但有独特的复活机制
 """
 
+from core.event_log import emit
 from typing import Optional
 
 from core.behavior import BehaviorType
@@ -51,7 +52,7 @@ class ChickenMaster(Character):
     @property
     def airdrop_count(self) -> int:
         """当前空投数量"""
-        return self.get_accumulation("空投")
+        return self.get_resource("空投")
 
     def can_revive(self) -> bool:
         """检查是否可以复活（拥有 n≥4 个空投）"""
@@ -63,16 +64,16 @@ class ChickenMaster(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
     # --- 技能效果函数 ---
 
@@ -97,13 +98,13 @@ class ChickenMaster(Character):
         if not target:
             return False
         target.add_control("烟雾弹", 1)
-        print(f"{target.get_name()} 被烟雾弹笼罩！")
+        emit(f"{target.get_name()} 被烟雾弹笼罩！")
         return True
 
     def _airdrop_effect(self, caster: Character, target: Optional[Character]) -> bool:
         """空投：获得1个空投资源"""
-        self.add_accumulation("空投", 1)
-        print(f"{self.name} 获得了1个空投，当前空投: {self.airdrop_count}")
+        self.add_resource("空投", 1)
+        emit(f"{self.name} 获得了1个空投，当前空投: {self.airdrop_count}")
         return True
 
     def on_destroy(self):
@@ -116,12 +117,12 @@ class ChickenMaster(Character):
             n = self.airdrop_count
             self._revive_hp = 3 * n
             self._pending_revive = True
-            print(
+            emit(
                 f"{self.name} 死亡！但拥有 {n} 个空投，即将复活！"
                 f"复活血量: {self._revive_hp}"
             )
             # 消耗所有空投
-            self.clear_accumulation("空投")
+            self.clear_resource("空投")
         else:
             self._pending_revive = False
             super().on_destroy()
@@ -140,7 +141,7 @@ class ChickenMaster(Character):
             self._revive_hp = 0
             self.max_hp = revive_hp
             self.current_hp = revive_hp
-            print(
+            emit(
                 f"{self.name} 通过空投复活！"
                 f"当前生命值: {self.current_hp}/{self.max_hp}"
             )
@@ -158,18 +159,18 @@ class ChickenMaster(Character):
         new_behavior: Optional[BehaviorType],
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 端着M4向前逼近！")
+            emit(f"{self.name} 端着M4向前逼近！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 找掩体后撤！")
+            emit(f"{self.name} 找掩体后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 从烟雾中挣脱！")
+            emit(f"{self.name} 从烟雾中挣脱！")
 
     def reset_battle_round(self):
         """新一局重置：清除空投累积"""
-        self.clear_accumulation("空投")
+        self.clear_resource("空投")
         self._pending_revive = False
         self._revive_hp = 0
-        print(f"{self.name} 准备就绪，空投已重置")
+        emit(f"{self.name} 准备就绪，空投已重置")
 
 
 CHICKEN_MASTER_SKILLS_DATA = {

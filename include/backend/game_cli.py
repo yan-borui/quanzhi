@@ -39,8 +39,10 @@ class GameCLI:
             print(f"控制效果: {action_context['controls']}")  # Target: Current Player
         if action_context["imprints"]:
             print(f"印记: {action_context['imprints']}")  # Target: Current Player
-        if action_context["accumulations"]:
-            print(f"积累: {action_context['accumulations']}")  # Target: Current Player
+        if action_context.get("resources"):
+            print(f"资源: {action_context['resources']}")  # Target: Current Player
+        if action_context.get("modifiers"):
+            print(f"战斗修正: {action_context['modifiers']}")  # Target: Current Player
         if action_context["shield_charges"] is not None:
             print(
                 f"盾次数: {action_context['shield_charges']}"

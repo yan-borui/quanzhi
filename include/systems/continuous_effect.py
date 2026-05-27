@@ -12,6 +12,7 @@ ContinuousEffectSystem - 持续效果系统
 - 支持效果叠加和独立计时
 """
 
+from core.event_log import emit
 from typing import Callable, Optional, Any, List, Dict, Iterable
 from enum import Enum
 
@@ -79,7 +80,7 @@ class ContinuousEffect:
             self.trigger_func(target)
             return True
         except Exception as e:
-            print(f"[持续效果] {self.name} 触发失败: {e}")
+            emit(f"[持续效果] {self.name} 触发失败: {e}")
             return False
 
     def decrease_duration(self) -> bool:
@@ -162,7 +163,7 @@ class ContinuousEffectSystem:
 
         target_name = target.get_name() if hasattr(target, "get_name") else str(target)
         duration_str = f"{effect.duration}回合" if effect.duration > 0 else "永久"
-        print(
+        emit(
             f"[持续效果] {target_name} 获得了 '{effect.name}' 效果 (持续: {duration_str})"
         )
 
@@ -177,7 +178,7 @@ class ContinuousEffectSystem:
 
         self.block_effects[block_id].append(effect)
         duration_str = f"{effect.duration}回合" if effect.duration > 0 else "永久"
-        print(
+        emit(
             f"[持续效果] 块 {block_id} 获得了 '{effect.name}' 效果 (持续: {duration_str})"
         )
 
@@ -210,7 +211,7 @@ class ContinuousEffectSystem:
             target_name = (
                 target.get_name() if hasattr(target, "get_name") else str(target)
             )
-            print(
+            emit(
                 f"[持续效果] {target_name} 的 '{effect_name}' 效果被移除 (数量: {removed_count})"
             )
 
@@ -242,7 +243,7 @@ class ContinuousEffectSystem:
                 target_name = (
                     target.get_name() if hasattr(target, "get_name") else str(target)
                 )
-                print(f"[持续效果] {target_name} 的一层 '{effect_name}' 效果被移除")
+                emit(f"[持续效果] {target_name} 的一层 '{effect_name}' 效果被移除")
                 return True
 
         return False
@@ -262,7 +263,7 @@ class ContinuousEffectSystem:
                 target_name = (
                     target.get_name() if hasattr(target, "get_name") else str(target)
                 )
-                print(
+                emit(
                     f"[持续效果] {target_name} 的所有持续效果被清除 (数量: {effect_count})"
                 )
 
@@ -286,20 +287,20 @@ class ContinuousEffectSystem:
             return
 
         target_name = target.get_name() if hasattr(target, "get_name") else str(target)
-        print(f"\n[持续效果] 处理 {target_name} 的持续效果...")
+        emit(f"\n[持续效果] 处理 {target_name} 的持续效果...")
 
         # 触发所有效果并减少持续时间
         effects_to_remove = []
 
         for effect in effects:
             if effect.is_active:
-                print(f"  - 触发 '{effect.name}' (剩余 {effect.remaining_turns} 回合)")
+                emit(f"  - 触发 '{effect.name}' (剩余 {effect.remaining_turns} 回合)")
                 effect.trigger(target)
 
                 # 减少持续时间
                 if effect.decrease_duration():
                     effects_to_remove.append(effect)
-                    print(f"    '{effect.name}' 效果已结束")
+                    emit(f"    '{effect.name}' 效果已结束")
 
         # 移除已结束的效果
         for effect in effects_to_remove:
@@ -328,13 +329,13 @@ class ContinuousEffectSystem:
                 effects_to_remove.append(effect)
                 continue
 
-            print(f"\n[持续效果] 触发块 {block_id} 的 '{effect.name}' 效果")
+            emit(f"\n[持续效果] 触发块 {block_id} 的 '{effect.name}' 效果")
             for target in targets:
                 effect.trigger(target)
 
             if effect.decrease_duration():
                 effects_to_remove.append(effect)
-                print(f"    块 {block_id} 的 '{effect.name}' 效果已结束")
+                emit(f"    块 {block_id} 的 '{effect.name}' 效果已结束")
 
         for effect in effects_to_remove:
             if effect in effects:
@@ -366,7 +367,7 @@ class ContinuousEffectSystem:
             )
             for effect in effects_to_remove:
                 effects.remove(effect)
-                print(f"[持续效果] {target_name} 的 '{effect.name}' 因 {event} 被移除")
+                emit(f"[持续效果] {target_name} 的 '{effect.name}' 因 {event} 被移除")
 
     def get_effects(self, target: Any) -> List[ContinuousEffect]:
         """

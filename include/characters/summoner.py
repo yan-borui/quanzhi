@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Summoner.py
+from core.event_log import emit
 from typing import Optional
 
 from core.behavior import BehaviorType
@@ -31,25 +32,37 @@ class Summoner(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         if skill_name == "齐攻":
-            wolf_accumulation = self.get_accumulation("狼")
-            bear_accumulation = self.get_accumulation("熊")
+            wolf_accumulation = self.get_resource("狼")
+            bear_accumulation = self.get_resource("熊")
             if wolf_accumulation < 6 and bear_accumulation < 6:
-                print(
+                emit(
                     f"齐攻需要至少6只狼或6只熊的积累！当前狼:{wolf_accumulation}, 熊:{bear_accumulation}"
                 )
                 return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        if skill_name != "齐攻":
+            return super().describe_skill_action(skill_name, skill, battle)
+
+        wolf_accum = self.get_resource("狼")
+        bear_accum = self.get_resource("熊")
+        if wolf_accum >= 6 or bear_accum >= 6:
+            return self.format_skill_action(skill_name, skill)
+        return self.format_skill_action(
+            skill_name, skill, f"积累不足:狼{wolf_accum}/熊{bear_accum}"
+        )
 
     def _wolf_effect(self, caster: Character, target: Optional[Character]) -> bool:
         if not target:
@@ -57,18 +70,16 @@ class Summoner(Character):
 
         if target is self:
             # 情况A：目标为自己，积累层数+2
-            self.add_accumulation("狼", 2)
-            print(f"{self.name} 召唤了狼群，当前狼积累: {self.get_accumulation('狼')}")
+            self.add_resource("狼", 2)
+            emit(f"{self.name} 召唤了狼群，当前狼积累: {self.get_resource('狼')}")
         else:
             # 对他人使用：积累层数+1，并施加易伤
-            self.add_accumulation("狼", 1)
-            print(
-                f"{self.name} 召唤了一只狼，当前狼积累: {self.get_accumulation('狼')}"
-            )
+            self.add_resource("狼", 1)
+            emit(f"{self.name} 召唤了一只狼，当前狼积累: {self.get_resource('狼')}")
             # 情况B：施加易伤状态（下一回合受到的伤害增加20%，可叠加）
-            current_vulnerability = target.get_accumulation("易伤")
-            target.add_accumulation("易伤", 20)
-            print(
+            current_vulnerability = target.get_modifier("易伤")
+            target.add_modifier("易伤", 20)
+            emit(
                 f"{target.get_name()} 被施加了易伤状态，下回合受到伤害增加 {current_vulnerability + 20}%"
             )
 
@@ -80,19 +91,17 @@ class Summoner(Character):
 
         if target is self:
             # 情况A：目标为自己，积累层数+2
-            self.add_accumulation("熊", 2)
-            print(f"{self.name} 召唤了熊群，当前熊积累: {self.get_accumulation('熊')}")
+            self.add_resource("熊", 2)
+            emit(f"{self.name} 召唤了熊群，当前熊积累: {self.get_resource('熊')}")
 
         else:
             # 对他人使用：积累层数+1，并施加攻击强化
-            self.add_accumulation("熊", 1)
-            print(
-                f"{self.name} 召唤了一只熊，当前熊积累: {self.get_accumulation('熊')}"
-            )
+            self.add_resource("熊", 1)
+            emit(f"{self.name} 召唤了一只熊，当前熊积累: {self.get_resource('熊')}")
             # 情况C：施加攻击强化状态（下一次造成伤害+6，可叠加）
-            target.add_accumulation("攻击强化", 6)
-            print(
-                f"{target.get_name()} 获得了攻击强化，下次造成伤害 +{target.get_accumulation('攻击强化')}"
+            target.add_modifier("攻击强化", 6)
+            emit(
+                f"{target.get_name()} 获得了攻击强化，下次造成伤害 +{target.get_modifier('攻击强化')}"
             )
 
         return True
@@ -103,17 +112,17 @@ class Summoner(Character):
         if not target:
             return False
 
-        wolf_accumulation = self.get_accumulation("狼")
-        bear_accumulation = self.get_accumulation("熊")
+        wolf_accumulation = self.get_resource("狼")
+        bear_accumulation = self.get_resource("熊")
 
         if wolf_accumulation >= 6:
-            self.reduce_accumulation("狼", 6)
-            print(f"{self.name} 消耗了6只狼发动齐攻！")
+            self.reduce_resource("狼", 6)
+            emit(f"{self.name} 消耗了6只狼发动齐攻！")
         elif bear_accumulation >= 6:
-            self.reduce_accumulation("熊", 6)
-            print(f"{self.name} 消耗了6只熊发动齐攻！")
+            self.reduce_resource("熊", 6)
+            emit(f"{self.name} 消耗了6只熊发动齐攻！")
         else:
-            print(f"齐攻失败：没有足够的狼或熊积累")
+            emit(f"齐攻失败：没有足够的狼或熊积累")
             return False
 
         target.take_damage(self.apply_attack_buff(30))
@@ -123,15 +132,15 @@ class Summoner(Character):
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 指挥召唤物向前推进！")
+            emit(f"{self.name} 指挥召唤物向前推进！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 与召唤物一同后撤！")
+            emit(f"{self.name} 与召唤物一同后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 念动咒语解除控制！")
+            emit(f"{self.name} 念动咒语解除控制！")
 
     def reset_battle_round(self):
-        self.accumulations.clear()
-        print(f"{self.name} 准备就绪，所有召唤物积累已清空")
+        self.clear_accumulations()
+        emit(f"{self.name} 准备就绪，所有召唤物积累已清空")
 
 
 SUMMONER_SKILLS_DATA = {

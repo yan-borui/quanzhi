@@ -16,6 +16,7 @@
 - 亮瞎你兼具高伤害和控制效果
 """
 
+from core.event_log import emit
 from typing import Optional, List
 
 from core.behavior import BehaviorType
@@ -49,7 +50,7 @@ class DiscMaster(Character):
     @property
     def disc_count(self) -> int:
         """当前光盘数量"""
-        return self.get_accumulation("光盘")
+        return self.get_resource("光盘")
 
     def use_skill(self, skill_name: str):
         self.use_skill_on_target(skill_name, self)
@@ -57,28 +58,28 @@ class DiscMaster(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         # 亮瞎你需要至少3张光盘
         if skill_name == "亮瞎你":
             if self.disc_count < 3:
-                print(f"亮瞎你需要至少3张光盘！当前光盘: {self.disc_count}")
+                emit(f"亮瞎你需要至少3张光盘！当前光盘: {self.disc_count}")
                 return
 
         # 光盘飞刀需要至少5张光盘
         if skill_name == "光盘飞刀":
             if self.disc_count < 5:
-                print(f"光盘飞刀需要至少5张光盘！当前光盘: {self.disc_count}")
+                emit(f"光盘飞刀需要至少5张光盘！当前光盘: {self.disc_count}")
                 return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
     def use_disc_scatter_with_player_count(self, player_count: int) -> bool:
         """
@@ -93,17 +94,17 @@ class DiscMaster(Character):
         """
         skill = self.get_skill("光盘散落")
         if not skill:
-            print(f"{self.name} 没有技能: 光盘散落")
+            emit(f"{self.name} 没有技能: 光盘散落")
             return False
         if not skill.is_available():
-            print(f"技能 光盘散落 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 光盘散落 在冷却中 (CD:{skill.get_cooldown()})")
             return False
         if player_count <= 0:
-            print("光盘散落没有有效的在场玩家！")
+            emit("光盘散落没有有效的在场玩家！")
             return False
 
-        self.add_accumulation("光盘", player_count)
-        print(
+        self.add_resource("光盘", player_count)
+        emit(
             f"{self.name} 使用了光盘散落！获得 {player_count} 张光盘，"
             f"当前光盘: {self.disc_count}"
         )
@@ -118,8 +119,8 @@ class DiscMaster(Character):
         if not target:
             return False
         target.take_damage(self.apply_attack_buff(3))
-        self.add_accumulation("光盘", 1)
-        print(f"{self.name} 获得了1张光盘，当前光盘: {self.disc_count}")
+        self.add_resource("光盘", 1)
+        emit(f"{self.name} 获得了1张光盘，当前光盘: {self.disc_count}")
         return True
 
     def _blind_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -128,12 +129,12 @@ class DiscMaster(Character):
             return False
 
         # 消耗3张光盘
-        self.reduce_accumulation("光盘", 3)
-        print(f"{self.name} 消耗了3张光盘，剩余光盘: {self.disc_count}")
+        self.reduce_resource("光盘", 3)
+        emit(f"{self.name} 消耗了3张光盘，剩余光盘: {self.disc_count}")
 
         target.take_damage(self.apply_attack_buff(15))
         target.add_control("亮瞎你", 1)
-        print(f"{target.get_name()} 被亮瞎了！")
+        emit(f"{target.get_name()} 被亮瞎了！")
         return True
 
     def _disc_knife_effect(
@@ -144,8 +145,8 @@ class DiscMaster(Character):
             return False
 
         # 消耗5张光盘
-        self.reduce_accumulation("光盘", 5)
-        print(f"{self.name} 消耗了5张光盘，剩余光盘: {self.disc_count}")
+        self.reduce_resource("光盘", 5)
+        emit(f"{self.name} 消耗了5张光盘，剩余光盘: {self.disc_count}")
 
         target.take_damage(self.apply_attack_buff(30))
         return True
@@ -158,24 +159,24 @@ class DiscMaster(Character):
         注意：实际使用应通过 use_disc_scatter_with_player_count 传入玩家数。
         此处作为默认入口，获取1张光盘。
         """
-        self.add_accumulation("光盘", 1)
-        print(f"{self.name} 散落了光盘，当前光盘: {self.disc_count}")
+        self.add_resource("光盘", 1)
+        emit(f"{self.name} 散落了光盘，当前光盘: {self.disc_count}")
         return True
 
     def on_behavior_change(
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 举着光盘向前逼近！")
+            emit(f"{self.name} 举着光盘向前逼近！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 抱着光盘后撤！")
+            emit(f"{self.name} 抱着光盘后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 甩出光盘挣脱束缚！")
+            emit(f"{self.name} 甩出光盘挣脱束缚！")
 
     def reset_battle_round(self):
         """新一局重置：清除光盘累积"""
-        self.clear_accumulation("光盘")
-        print(f"{self.name} 准备就绪，光盘已重置")
+        self.clear_resource("光盘")
+        emit(f"{self.name} 准备就绪，光盘已重置")
 
 
 DISC_MASTER_SKILLS_DATA = {

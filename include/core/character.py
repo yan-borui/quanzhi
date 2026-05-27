@@ -19,12 +19,19 @@ Character 抽象基类
 - 新增回合事件记录（伤害/治疗/控制增减），供骑士盾等效果使用
 """
 
+from core.event_log import emit
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
 from core.skill import Skill
 from core.behavior import BehaviorType
+from core.status_effects import (
+    NON_BLOCKING_CONTROL_NAMES,
+    accumulation_bucket,
+    control_blocks_action,
+    control_is_non_blocking,
+)
 
-HARMLESS_CONTROLS = {"护盾", "风阵", "火阵", "飞镰"}
+HARMLESS_CONTROLS = set(NON_BLOCKING_CONTROL_NAMES)
 
 
 class Character(ABC):
@@ -44,7 +51,8 @@ class Character(ABC):
 
         self.skills: Dict[str, Skill] = {}
         self.imprints: Dict[str, int] = {}
-        self.accumulations: Dict[str, int] = {}
+        self.resources: Dict[str, int] = {}
+        self.modifiers: Dict[str, int] = {}
         self.nearby_characters: List["Character"] = [self]
         self.current_behavior: Optional[BehaviorType] = None
 
@@ -86,8 +94,39 @@ class Character(ABC):
 
     def is_controlled(self) -> bool:
         """检查角色是否被控制（有控制效果）"""
-        # 护盾/风阵/火阵/飞镰不阻止行动
-        return any(k not in HARMLESS_CONTROLS for k in self.control.keys())
+        return any(control_blocks_action(k) for k in self.control.keys())
+
+    def get_blocking_controls(self) -> List[str]:
+        return [
+            control_name
+            for control_name in self.control.keys()
+            if control_blocks_action(control_name)
+        ]
+
+    def get_non_blocking_controls(self) -> List[str]:
+        return [
+            control_name
+            for control_name in self.control.keys()
+            if control_is_non_blocking(control_name)
+        ]
+
+    def format_skill_action(
+        self, skill_name: str, skill: Skill, reason: str = ""
+    ) -> str:
+        if reason:
+            return f"技能:{skill_name}({reason})"
+        if skill.is_available():
+            return f"技能:{skill_name}"
+        return f"技能:{skill_name}(CD:{skill.get_cooldown()})"
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        return self.format_skill_action(skill_name, skill)
+
+    def available_when_controlled_actions(self, battle) -> List[str]:
+        return []
+
+    def available_when_defeated_actions(self, battle) -> List[str]:
+        return []
 
     # 带目标的技能使用（可选实现）
     def use_skill_on_target(self, skill_name: str, target: "Character"):
@@ -117,7 +156,7 @@ class Character(ABC):
             self.nearby_characters.append(character)
             if self not in character.nearby_characters:
                 character.add_nearby_character(self)
-            print(f"{self.name} 与 {character.name} 距离变近")
+            emit(f"{self.name} 与 {character.name} 距离变近")
 
     def remove_nearby_character(self, character: "Character"):
         """移除附近角色"""
@@ -125,7 +164,7 @@ class Character(ABC):
             self.nearby_characters.remove(character)
             if self in character.nearby_characters:
                 character.remove_nearby_character(self)
-            print(f"{self.name} 与 {character.name} 距离变远")
+            emit(f"{self.name} 与 {character.name} 距离变远")
 
     def clear_nearby_characters(self):
         """清空附近角色列表"""
@@ -142,32 +181,32 @@ class Character(ABC):
 
     def apply_attack_buff(self, base_damage: int) -> int:
         """应用攻击强化效果并消耗，返回最终伤害值"""
-        buff = self.get_accumulation("攻击强化")
+        buff = self.get_modifier("攻击强化")
         if buff > 0:
-            print(f"{self.name} 的攻击强化效果生效，伤害增加 {buff} 点")
-            self.clear_accumulation("攻击强化")
+            emit(f"{self.name} 的攻击强化效果生效，伤害增加 {buff} 点")
+            self.clear_modifier("攻击强化")
             return base_damage + buff
         return base_damage
 
     # 受伤并显示（确保边界）
     def take_damage(self, damage: int):
         if damage <= 0:
-            print(f"{self.name} 未受到有效伤害: {damage}")
+            emit(f"{self.name} 未受到有效伤害: {damage}")
             return
 
         # 单次护盾效果：抵消一次攻击后消失
         if self.has_control("护盾"):
             self.clear_control("护盾")
-            print(f"{self.name} 的护盾抵消了这次攻击！")
+            emit(f"{self.name} 的护盾抵消了这次攻击！")
             return
 
         # 易伤效果：受到伤害增加，然后消耗易伤
-        vulnerability = self.get_accumulation("易伤")
+        vulnerability = self.get_modifier("易伤")
         if vulnerability > 0:
             bonus = damage * vulnerability // 100
             damage += bonus
-            print(f"{self.name} 的易伤效果生效，伤害增加 {bonus} 点")
-            self.clear_accumulation("易伤")
+            emit(f"{self.name} 的易伤效果生效，伤害增加 {bonus} 点")
+            self.clear_modifier("易伤")
 
         was_alive = self.is_alive()
         self.current_hp -= damage
@@ -177,20 +216,20 @@ class Character(ABC):
         # 记录本回合受到的伤害
         self._current_turn_log()["damage"] += damage
 
-        print(
+        emit(
             f"{self.name} 受到了 {damage} 点伤害，当前生命值: {self.current_hp}/{self.max_hp}"
         )
 
         if was_alive and self.is_destroyed():
             if self.control:
-                print(f"{self.name} 死亡时清除了所有控制效果")
+                emit(f"{self.name} 死亡时清除了所有控制效果")
                 self.clear_all_controls()
             self.on_destroy()
 
     # 治疗并显示
     def heal(self, amount: int):
         if amount <= 0:
-            print(f"{self.name} 没有被有效治疗: {amount}")
+            emit(f"{self.name} 没有被有效治疗: {amount}")
             return
         self.current_hp += amount
         if self.current_hp > self.max_hp:
@@ -199,7 +238,7 @@ class Character(ABC):
         # 记录本回合治疗
         self._current_turn_log()["heal"] += amount
 
-        print(
+        emit(
             f"{self.name} 恢复了 {amount} 点生命值，当前生命值: {self.current_hp}/{self.max_hp}"
         )
 
@@ -258,7 +297,7 @@ class Character(ABC):
             log["control_add"].get(control_name, 0) + stacks
         )
 
-        print(
+        emit(
             f"{self.name} 获得了 {control_name} 控制效果，层数: {self.control[control_name]}"
         )
 
@@ -274,16 +313,16 @@ class Character(ABC):
     def reduce_control(self, control_name: str, stacks: int = 1):
         """减少控制效果层数"""
         if control_name not in self.control or stacks <= 0:
-            print(f"{self.name} 没有控制效果: {control_name}")
+            emit(f"{self.name} 没有控制效果: {control_name}")
             return
 
         removed = min(stacks, self.control[control_name])
         self.control[control_name] -= stacks
         if self.control[control_name] <= 0:
             del self.control[control_name]
-            print(f"{self.name} 清除了 {control_name} 控制效果")
+            emit(f"{self.name} 清除了 {control_name} 控制效果")
         else:
-            print(
+            emit(
                 f"{self.name} 减少了 {control_name} 控制效果，剩余层数: {self.control[control_name]}"
             )
 
@@ -304,7 +343,7 @@ class Character(ABC):
             )
 
             del self.control[control_name]
-            print(f"{self.name} 清除了 {control_name} 控制效果")
+            emit(f"{self.name} 清除了 {control_name} 控制效果")
 
     def clear_all_controls(self):
         """清除所有控制效果"""
@@ -328,7 +367,7 @@ class Character(ABC):
             log = self._current_turn_log()
             log["imprint_add"][imprint] = log["imprint_add"].get(imprint, 0) + value
 
-        print(
+        emit(
             f"{self.name} 获得了 {imprint} 印记，值: {value}，当前值: {self.imprints[imprint]}"
         )
 
@@ -337,53 +376,115 @@ class Character(ABC):
 
     def remove_imprint(self, imprint: str):
         if imprint not in self.imprints:
-            print(f"{self.name} 不存在印记: {imprint}")
+            emit(f"{self.name} 不存在印记: {imprint}")
             return
 
         if self.imprints[imprint] > 1:
             self.imprints[imprint] -= 1
-            print(
+            emit(
                 f"{self.name} 移除了一层 {imprint} 印记，剩余: {self.imprints[imprint]}"
             )
         else:
             del self.imprints[imprint]
-            print(f"{self.name} 清除了 {imprint} 印记")
+            emit(f"{self.name} 清除了 {imprint} 印记")
 
     def clear_imprint(self, imprint: str):
         if imprint in self.imprints:
             del self.imprints[imprint]
-            print(f"{self.name} 清除了 {imprint} 累积效果")
+            emit(f"{self.name} 清除了 {imprint} 累积效果")
 
     # 累积效果管理
+    @property
+    def accumulations(self) -> Dict[str, int]:
+        return {**self.resources, **self.modifiers}
+
+    @accumulations.setter
+    def accumulations(self, values: Dict[str, int]):
+        self.resources = {}
+        self.modifiers = {}
+        for effect, value in values.items():
+            if accumulation_bucket(effect) == "modifier":
+                self.modifiers[effect] = value
+            else:
+                self.resources[effect] = value
+
+    def _accumulation_store(self, effect: str) -> Dict[str, int]:
+        if accumulation_bucket(effect) == "modifier":
+            return self.modifiers
+        return self.resources
+
+    def add_resource(self, resource: str, value: int):
+        self._add_accumulation_to(self.resources, resource, value, "资源")
+
+    def get_resource(self, resource: str) -> int:
+        return self.resources.get(resource, 0)
+
+    def reduce_resource(self, resource: str, number: int):
+        self._reduce_accumulation_from(self.resources, resource, number, "资源")
+
+    def clear_resource(self, resource: str):
+        self._clear_accumulation_from(self.resources, resource, "资源")
+
+    def add_modifier(self, modifier: str, value: int):
+        self._add_accumulation_to(self.modifiers, modifier, value, "战斗修正")
+
+    def get_modifier(self, modifier: str) -> int:
+        return self.modifiers.get(modifier, 0)
+
+    def reduce_modifier(self, modifier: str, number: int):
+        self._reduce_accumulation_from(self.modifiers, modifier, number, "战斗修正")
+
+    def clear_modifier(self, modifier: str):
+        self._clear_accumulation_from(self.modifiers, modifier, "战斗修正")
+
+    def clear_accumulations(self):
+        self.resources.clear()
+        self.modifiers.clear()
+
     def add_accumulation(self, effect: str, value: int):
-        if not effect:
-            return
-        if effect not in self.accumulations:
-            self.accumulations[effect] = 0
-        self.accumulations[effect] += value
-        print(f"{self.name} 获得了 {effect} 累积效果，值: {self.accumulations[effect]}")
+        self._add_accumulation_to(
+            self._accumulation_store(effect), effect, value, "累积效果"
+        )
 
     def get_accumulation(self, effect: str) -> int:
-        return self.accumulations.get(effect, 0)
+        return self.resources.get(effect, self.modifiers.get(effect, 0))
 
     def reduce_accumulation(self, effect: str, number: int):
-        if effect not in self.accumulations:
-            print(f"{self.name} 没有累积效果: {effect}")
-            return
-
-        self.accumulations[effect] -= number
-        if self.accumulations[effect] <= 0:
-            del self.accumulations[effect]
-            print(f"{self.name} 消耗并清除了 {effect} 累积效果")
-        else:
-            print(
-                f"{self.name} 消耗了 {effect} 累积效果，剩余: {self.accumulations[effect]}"
-            )
+        self._reduce_accumulation_from(
+            self._accumulation_store(effect), effect, number, "累积效果"
+        )
 
     def clear_accumulation(self, effect: str):
-        if effect in self.accumulations:
-            del self.accumulations[effect]
-            print(f"{self.name} 清除了 {effect} 累积效果")
+        self._clear_accumulation_from(
+            self._accumulation_store(effect), effect, "累积效果"
+        )
+
+    def _add_accumulation_to(
+        self, store: Dict[str, int], effect: str, value: int, label: str
+    ):
+        if not effect:
+            return
+        store[effect] = store.get(effect, 0) + value
+        emit(f"{self.name} 获得了 {effect} {label}，值: {store[effect]}")
+
+    def _reduce_accumulation_from(
+        self, store: Dict[str, int], effect: str, number: int, label: str
+    ):
+        if effect not in store:
+            emit(f"{self.name} 没有{label}: {effect}")
+            return
+
+        store[effect] -= number
+        if store[effect] <= 0:
+            del store[effect]
+            emit(f"{self.name} 消耗并清除了 {effect} {label}")
+        else:
+            emit(f"{self.name} 消耗了 {effect} {label}，剩余: {store[effect]}")
+
+    def _clear_accumulation_from(self, store: Dict[str, int], effect: str, label: str):
+        if effect in store:
+            del store[effect]
+            emit(f"{self.name} 清除了 {effect} {label}")
 
     # 属性访问与设置
     def get_current_hp(self) -> int:
@@ -440,51 +541,57 @@ class Character(ABC):
 
     # 输出状态
     def display_status(self):
-        print(f"=== {self.name} 状态 ===")
-        print(f"生命值: {self.current_hp}/{self.max_hp}", end="")
+        emit(f"=== {self.name} 状态 ===")
+        emit(f"生命值: {self.current_hp}/{self.max_hp}", end="")
         if self.is_destroyed():
-            print(" [已摧毁]", end="")
-        print()
+            emit(" [已摧毁]", end="")
+        emit()
 
         if self.is_controlled():
-            print("状态: [被控制 - 下回合只能解控]", end="")
+            emit("状态: [被控制 - 下回合只能解控]", end="")
         else:
-            print("状态: [正常]", end="")
-        print()
+            emit("状态: [正常]", end="")
+        emit()
 
         if self.control:
-            print("控制效果: ", end="")
+            emit("控制效果: ", end="")
             for control_name, stacks in self.control.items():
-                print(f"{control_name}({stacks}) ", end="")
-            print()
+                emit(f"{control_name}({stacks}) ", end="")
+            emit()
         else:
-            print("控制效果: 无")
+            emit("控制效果: 无")
 
-        print(f"潜行: {self.stealth}")
+        emit(f"潜行: {self.stealth}")
 
         if self.skills:
-            print("技能列表: ", end="")
+            emit("技能列表: ", end="")
             for name, skill in self.skills.items():
-                print(f"{name}(CD:{skill.get_cooldown()}) ", end="")
-            print()
+                emit(f"{name}(CD:{skill.get_cooldown()}) ", end="")
+            emit()
 
-        if self.accumulations:
-            print("累积效果: ", end="")
-            for effect, value in self.accumulations.items():
-                print(f"{effect}({value}) ", end="")
-            print()
+        if self.resources:
+            emit("资源: ", end="")
+            for effect, value in self.resources.items():
+                emit(f"{effect}({value}) ", end="")
+            emit()
+
+        if self.modifiers:
+            emit("战斗修正: ", end="")
+            for effect, value in self.modifiers.items():
+                emit(f"{effect}({value}) ", end="")
+            emit()
 
         if self.imprints:
-            print("印记: ", end="")
+            emit("印记: ", end="")
             for imprint, value in self.imprints.items():
-                print(f"{imprint}({value}) ", end="")
-            print()
+                emit(f"{imprint}({value}) ", end="")
+            emit()
 
-        print(f"可行动: {'是' if self.can_act() else '否'}")
+        emit(f"可行动: {'是' if self.can_act() else '否'}")
 
     # 特殊事件钩子
     def on_summon(self):
-        print(f"{self.name} 被召唤到战场！")
+        emit(f"{self.name} 被召唤到战场！")
 
     def on_destroy(self):
-        print(f"{self.name} 从战场上消失！")
+        emit(f"{self.name} 从战场上消失！")

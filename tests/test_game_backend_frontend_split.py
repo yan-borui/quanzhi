@@ -14,6 +14,8 @@ from characters.scholar import Scholar
 from characters.oil_master import OilMaster
 from characters.target import Target
 from characters.warlock import Warlock
+from characters.summoner import Summoner
+from core.event_log import event_sink, silence_events
 from core.player import Player
 from main import GameBackend
 
@@ -42,6 +44,73 @@ def test_backend_returns_structured_action_context():
     assert isinstance(context, dict)
     assert "actions" in context
     assert isinstance(context["actions"], list)
+
+
+def test_control_metadata_separates_blocking_and_non_blocking_controls():
+    actor = Target("行动者")
+    defender = Target("防御者")
+    game = GameBackend([actor, defender])
+
+    actor.add_control("护盾", 1)
+    assert actor.is_controlled() is False
+    assert "技能:平A" in game.get_available_actions(actor)
+    assert "行为:解控-护盾" in game.get_available_actions(actor)
+
+    actor.add_control("眩晕", 1)
+    assert actor.is_controlled() is True
+    actions = game.get_available_actions(actor)
+    assert "技能:平A" not in actions
+    assert "行为:解控-眩晕" in actions
+    assert "行为:解控-护盾" in actions
+
+
+def test_resources_and_modifiers_are_separate_with_legacy_lookup():
+    actor = Target("行动者")
+    game = GameBackend([actor, Target("防御者")])
+
+    actor.add_accumulation("电池", 2)
+    actor.add_accumulation("易伤", 20)
+    context = game.get_action_context(actor)
+
+    assert actor.resources == {"电池": 2}
+    assert actor.modifiers == {"易伤": 20}
+    assert actor.get_accumulation("电池") == 2
+    assert actor.get_accumulation("易伤") == 20
+    assert context["resources"] == {"电池": 2}
+    assert context["modifiers"] == {"易伤": 20}
+    assert context["accumulations"] == {"电池": 2, "易伤": 20}
+
+
+def test_role_describes_special_skill_availability():
+    summoner = Summoner("召唤师")
+    target = Target("目标")
+    game = GameBackend([summoner, target])
+
+    assert "技能:齐攻(积累不足:狼0/熊0)" in game.get_available_actions(summoner)
+
+    summoner.add_resource("狼", 6)
+
+    actions = game.get_available_actions(summoner)
+    assert "技能:齐攻" in actions
+    assert "技能:齐攻(积累不足:狼0/熊0)" not in actions
+
+
+def test_domain_events_can_be_silenced_and_captured(capsys):
+    target = Target("目标")
+
+    with silence_events():
+        target.take_damage(1)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+    events = []
+    with event_sink(events.append):
+        target.heal(1)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert any("恢复了 1 点生命值" in event for event in events)
 
 
 def test_backend_rejects_skill_on_cooldown():

@@ -19,7 +19,17 @@ from factory.character_factory import get_character_factory, get_character_regis
 
 DEFAULT_HOST = ""
 DEFAULT_PORT = 50007
-NO_TARGET_SKILLS = {"技能:盾", "技能:一锅油", "技能:回旋斩", "技能:爆炸", "技能:忍法地心", "技能:空投", "技能:电池", "技能:制造机器人"}
+NO_TARGET_SKILLS = {
+    "技能:盾",
+    "技能:一锅油",
+    "技能:回旋斩",
+    "技能:爆炸",
+    "技能:忍法地心",
+    "技能:空投",
+    "技能:电池",
+    "技能:制造机器人",
+}
+
 
 @dataclass
 class PlayerSession:
@@ -54,12 +64,14 @@ class PlayerSession:
         except OSError:
             pass
 
+
 @dataclass
 class MatchModifiers:
     enabled: bool = False
     hp_multiplier: int = 1
     step_multiplier: int = 1
     cd_multiplier: int = 1
+
 
 class NetworkGameServer:
     def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
@@ -83,7 +95,9 @@ class NetworkGameServer:
         self.match_modifiers = MatchModifiers()
 
     def start(self):
-        self.accept_thread = threading.Thread(target=self._accept_loop, daemon=True, name="server-accept")
+        self.accept_thread = threading.Thread(
+            target=self._accept_loop, daemon=True, name="server-accept"
+        )
         self.accept_thread.start()
 
     def shutdown(self):
@@ -119,21 +133,45 @@ class NetworkGameServer:
                     break
                 try:
                     if self.game_active.is_set():
-                        self._safe_send_and_close(conn, {"type": "chat_log", "text": "游戏已开始，当前无法加入。"})
+                        self._safe_send_and_close(
+                            conn,
+                            {"type": "chat_log", "text": "游戏已开始，当前无法加入。"},
+                        )
                         continue
                     if self.get_connected_count() >= self.config.max_players:
-                        self._safe_send_and_close(conn, {"type": "chat_log", "text": f"房间已满，最多支持 {self.config.max_players} 名玩家。"})
+                        self._safe_send_and_close(
+                            conn,
+                            {
+                                "type": "chat_log",
+                                "text": f"房间已满，最多支持 {self.config.max_players} 名玩家。",
+                            },
+                        )
                         continue
                     name, team, character, remaining = self._read_handshake(conn)
-                    session = PlayerSession(conn=conn, addr=addr, name=name or f"玩家{self.get_connected_count() + 1}", team=team or "默认队伍", character_request=character or "")
+                    session = PlayerSession(
+                        conn=conn,
+                        addr=addr,
+                        name=name or f"玩家{self.get_connected_count() + 1}",
+                        team=team or "默认队伍",
+                        character_request=character or "",
+                    )
                     with self.sessions_lock:
                         self.sessions[addr] = session
-                    reader_thread = threading.Thread(target=self._reader_loop, args=(session, remaining), daemon=True, name=f"reader-{addr[0]}:{addr[1]}")
+                    reader_thread = threading.Thread(
+                        target=self._reader_loop,
+                        args=(session, remaining),
+                        daemon=True,
+                        name=f"reader-{addr[0]}:{addr[1]}",
+                    )
                     reader_thread.start()
                     self.send_chat_log(session, "连接成功，等待房主开始游戏。")
-                    self.broadcast_public_log(f"队伍 {session.team} 的 {session.name} 加入了房间。")
+                    self.broadcast_public_log(
+                        f"队伍 {session.team} 的 {session.name} 加入了房间。"
+                    )
                     self.broadcast_state()
-                    print(f"[服务端] 玩家加入 {addr} -> {session.name} / {session.team} / {session.character_request or '未指定角色'}")
+                    print(
+                        f"[服务端] 玩家加入 {addr} -> {session.name} / {session.team} / {session.character_request or '未指定角色'}"
+                    )
                 except Exception as exc:
                     print(f"[服务端] 处理新连接失败 {addr}: {exc}")
                     try:
@@ -199,7 +237,12 @@ class NetworkGameServer:
             return
         if msg_type == "submit":
             with self.game_lock:
-                can_act = self.game_active.is_set() and session.connected and session.character_id == self.current_actor_id and payload.get("turn_id") == self.current_turn_id
+                can_act = (
+                    self.game_active.is_set()
+                    and session.connected
+                    and session.character_id == self.current_actor_id
+                    and payload.get("turn_id") == self.current_turn_id
+                )
             if not can_act:
                 self.send_private_log(session, "现在不是你的正式行动回合。")
                 return
@@ -219,7 +262,9 @@ class NetworkGameServer:
 
     def _safe_send_and_close(self, conn: socket.socket, payload: dict):
         try:
-            conn.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"))
+            conn.sendall(
+                (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+            )
         except OSError:
             pass
         try:
@@ -262,7 +307,11 @@ class NetworkGameServer:
 
     def broadcast_state(self):
         for session in self.get_connected_sessions():
-            self.send_json(session, {"type": "state", "payload": self._build_state_payload(session)})
+            self.send_json(
+                session,
+                {"type": "state", "payload": self._build_state_payload(session)},
+            )
+
     def run(self):
         self.start()
         try:
@@ -272,7 +321,9 @@ class NetworkGameServer:
                     break
                 sessions = self.get_connected_sessions()
                 if len(sessions) < self.config.min_players:
-                    print(f"[服务端] 玩家不足，至少需要 {self.config.min_players} 名玩家才能开始。")
+                    print(
+                        f"[服务端] 玩家不足，至少需要 {self.config.min_players} 名玩家才能开始。"
+                    )
                     continue
                 self.match_modifiers = self._prompt_match_modifiers()
                 self.active_sessions = sessions[: self.config.max_players]
@@ -290,7 +341,9 @@ class NetworkGameServer:
             self.shutdown()
 
     def _wait_for_start_command(self):
-        print(f"\n[服务端] 当前连接玩家 {self.get_connected_count()} 人，最少 {self.config.min_players} 人，最多 {self.config.max_players} 人。")
+        print(
+            f"\n[服务端] 当前连接玩家 {self.get_connected_count()} 人，最少 {self.config.min_players} 人，最多 {self.config.max_players} 人。"
+        )
         input("[服务端] 按回车开始游戏…\n")
 
     def _prompt_match_modifiers(self) -> MatchModifiers:
@@ -299,14 +352,18 @@ class NetworkGameServer:
             print("[服务端] 本局按默认规则运行。")
             return MatchModifiers()
         while True:
-            raw = input("[服务端] 请输入 x倍血量, y倍步数, z倍CD（非负整数，且 x/y 非 0），例如 5,3,2: ").strip()
+            raw = input(
+                "[服务端] 请输入 x倍血量, y倍步数, z倍CD（非负整数，且 x/y 非 0），例如 5,3,2: "
+            ).strip()
             normalized = raw.replace("，", ",").replace(" ", ",")
             parts = [part for part in normalized.split(",") if part != ""]
             if len(parts) != 3:
                 print("[服务端] 输入格式错误，请重新输入三个整数。")
                 continue
             try:
-                hp_multiplier, step_multiplier, cd_multiplier = [int(part) for part in parts]
+                hp_multiplier, step_multiplier, cd_multiplier = [
+                    int(part) for part in parts
+                ]
             except ValueError:
                 print("[服务端] 只能输入整数，请重新输入。")
                 continue
@@ -316,7 +373,9 @@ class NetworkGameServer:
             if hp_multiplier == 0 or step_multiplier == 0:
                 print("[服务端] x 和 y 不能为 0，请重新输入。")
                 continue
-            print(f"[服务端] 已启用特殊玩法：血量 x{hp_multiplier}，步数 x{step_multiplier}，CD x{cd_multiplier}")
+            print(
+                f"[服务端] 已启用特殊玩法：血量 x{hp_multiplier}，步数 x{step_multiplier}，CD x{cd_multiplier}"
+            )
             return MatchModifiers(
                 enabled=True,
                 hp_multiplier=hp_multiplier,
@@ -360,11 +419,15 @@ class NetworkGameServer:
             while not self.stop_event.is_set() and not self.room_broken.is_set():
                 actor_session = self.character_sessions.get(id(actor))
                 if actor_session is None or not actor_session.connected:
-                    self.broadcast_public_log(f"{actor.name} 的操控玩家已离线，本局终止。")
+                    self.broadcast_public_log(
+                        f"{actor.name} 的操控玩家已离线，本局终止。"
+                    )
                     self.room_broken.set()
                     break
                 if not actor.is_alive():
-                    self.broadcast_public_log(f"{actor.name} 已无法继续行动，本回合结束。")
+                    self.broadcast_public_log(
+                        f"{actor.name} 已无法继续行动，本回合结束。"
+                    )
                     round_consumed = True
                     with self.game_lock:
                         round_end = self.backend.finish_round(None)
@@ -375,7 +438,9 @@ class NetworkGameServer:
                 self.current_turn_id += 1
                 self._drain_submit_queue(actor_session)
                 if self.match_modifiers.step_multiplier > 1:
-                    self.broadcast_public_log(f"现在轮到 {actor.name} 行动（本回合剩余 {remaining_steps} 步）。")
+                    self.broadcast_public_log(
+                        f"现在轮到 {actor.name} 行动（本回合剩余 {remaining_steps} 步）。"
+                    )
                 else:
                     self.broadcast_public_log(f"现在轮到 {actor.name} 行动。")
                 self.broadcast_state()
@@ -392,7 +457,9 @@ class NetworkGameServer:
                     actor = reroll["winner"]
                     remaining_steps = self.match_modifiers.step_multiplier
                     if actor is None or not actor.is_alive():
-                        self.broadcast_public_log("重新判定后仍没有合法行动者，本回合结束。")
+                        self.broadcast_public_log(
+                            "重新判定后仍没有合法行动者，本回合结束。"
+                        )
                         round_consumed = True
                         with self.game_lock:
                             round_end = self.backend.finish_round(None)
@@ -401,21 +468,29 @@ class NetworkGameServer:
                         break
                     continue
                 with self.game_lock:
-                    game_over_after_action = self.backend is None or self.backend.is_game_over()
+                    game_over_after_action = (
+                        self.backend is None or self.backend.is_game_over()
+                    )
                 if game_over_after_action:
                     round_consumed = True
                     with self.game_lock:
-                        round_end = self.backend.finish_round(actor if actor.is_alive() else None)
+                        round_end = self.backend.finish_round(
+                            actor if actor.is_alive() else None
+                        )
                     self._broadcast_round_end(round_end)
                     self.broadcast_state()
                     break
                 remaining_steps -= 1
                 if remaining_steps > 0 and actor.is_alive():
-                    self.broadcast_public_log(f"{actor.name} 还可以继续行动 {remaining_steps} 次。")
+                    self.broadcast_public_log(
+                        f"{actor.name} 还可以继续行动 {remaining_steps} 次。"
+                    )
                     continue
                 round_consumed = True
                 with self.game_lock:
-                    round_end = self.backend.finish_round(actor if actor.is_alive() else None)
+                    round_end = self.backend.finish_round(
+                        actor if actor.is_alive() else None
+                    )
                 self._broadcast_round_end(round_end)
                 self.broadcast_state()
                 break
@@ -442,16 +517,27 @@ class NetworkGameServer:
                     character.max_hp *= self.match_modifiers.hp_multiplier
                     character.current_hp = character.max_hp
 
-    def _build_characters_for_sessions(self, sessions: List[PlayerSession]) -> List[object]:
+    def _build_characters_for_sessions(
+        self, sessions: List[PlayerSession]
+    ) -> List[object]:
         factory = get_character_factory()
-        default_cycle = self.config.default_characters or ["knight", "summoner", "swordsman"]
+        default_cycle = self.config.default_characters or [
+            "knight",
+            "summoner",
+            "swordsman",
+        ]
         characters = []
         for index, session in enumerate(sessions):
             role_id = self._resolve_role_id(session.character_request)
             if role_id is None:
                 role_id = default_cycle[index % len(default_cycle)]
-                self.send_private_log(session, f"未识别角色“{session.character_request or '空'}”，已回退为 {role_id}。")
-            display_name = (get_character_registry().get_metadata(role_id) or {}).get("display_name", role_id)
+                self.send_private_log(
+                    session,
+                    f"未识别角色“{session.character_request or '空'}”，已回退为 {role_id}。",
+                )
+            display_name = (get_character_registry().get_metadata(role_id) or {}).get(
+                "display_name", role_id
+            )
             character = factory.create(role_id, display_name)
             if character is None:
                 raise RuntimeError(f"无法创建角色: {role_id}")
@@ -486,16 +572,24 @@ class NetworkGameServer:
         for session in self.active_sessions:
             if session.character is None:
                 continue
-            self.broadcast_public_log(f"  - {session.character.name}: {session.character.max_hp} HP / 队伍 {session.team} 的 {session.name}")
+            self.broadcast_public_log(
+                f"  - {session.character.name}: {session.character.max_hp} HP / 队伍 {session.team} 的 {session.name}"
+            )
         self.broadcast_public_log("游戏规则：")
         self.broadcast_public_log("  1. 每回合通过石头剪刀布决定先手")
         self.broadcast_public_log("  2. 当前行动者可出招或行动，其他玩家可随时查看信息")
         self.broadcast_public_log("  3. 最后存活的角色获胜")
         if self.match_modifiers.enabled:
             self.broadcast_public_log("特殊玩法：")
-            self.broadcast_public_log(f"  - 初始生命值与生命上限 x{self.match_modifiers.hp_multiplier}")
-            self.broadcast_public_log(f"  - 每次获胜可连续行动 {self.match_modifiers.step_multiplier} 步")
-            self.broadcast_public_log(f"  - 技能冷却倍率 x{self.match_modifiers.cd_multiplier}")
+            self.broadcast_public_log(
+                f"  - 初始生命值与生命上限 x{self.match_modifiers.hp_multiplier}"
+            )
+            self.broadcast_public_log(
+                f"  - 每次获胜可连续行动 {self.match_modifiers.step_multiplier} 步"
+            )
+            self.broadcast_public_log(
+                f"  - 技能冷却倍率 x{self.match_modifiers.cd_multiplier}"
+            )
         self.broadcast_public_log("=" * 60)
 
     def _broadcast_round_start(self, round_data: dict):
@@ -505,9 +599,13 @@ class NetworkGameServer:
         self.broadcast_public_log("=" * 60)
         for row in round_data["battle_status"]:
             status = "存活" if row["alive"] else "已阵亡"
-            self.broadcast_public_log(f"{row['name']:10} [{status}] {row['hp_bar']} {row['current_hp']}/{row['max_hp']} HP")
+            self.broadcast_public_log(
+                f"{row['name']:10} [{status}] {row['hp_bar']} {row['current_hp']}/{row['max_hp']} HP"
+            )
             if row["status_info"]:
-                self.broadcast_public_log("           " + " | ".join(row["status_info"]))
+                self.broadcast_public_log(
+                    "           " + " | ".join(row["status_info"])
+                )
         self.broadcast_public_log("=" * 60)
         for line in round_data["rps_logs"]:
             self.broadcast_public_log(line)
@@ -528,7 +626,9 @@ class NetworkGameServer:
         self.broadcast_public_log("=" * 60)
         for char in round_end["characters"]:
             if char["alive"]:
-                self.broadcast_public_log(f"{char['name']}: {char['hp_bar']} {char['current_hp']}/{char['max_hp']} HP")
+                self.broadcast_public_log(
+                    f"{char['name']}: {char['hp_bar']} {char['current_hp']}/{char['max_hp']} HP"
+                )
             else:
                 self.broadcast_public_log(f"{char['name']}: [已阵亡]")
         self.broadcast_public_log("=" * 60)
@@ -542,7 +642,9 @@ class NetworkGameServer:
             self.broadcast_public_log("达到最大回合数限制。")
         if summary["type"] == "winner":
             self.broadcast_public_log(f"获胜者：{summary['winner_name']}")
-            self.broadcast_public_log(f"剩余生命值：{summary['winner_hp']}/{summary['winner_max_hp']}")
+            self.broadcast_public_log(
+                f"剩余生命值：{summary['winner_hp']}/{summary['winner_max_hp']}"
+            )
         elif summary["type"] == "all_destroyed":
             self.broadcast_public_log("所有角色同归于尽！")
         else:
@@ -552,7 +654,9 @@ class NetworkGameServer:
         self.broadcast_public_log("最终状态：")
         for char in summary["final_status"]:
             status = "存活" if char["alive"] else "已阵亡"
-            self.broadcast_public_log(f"  {char['name']}: {char['current_hp']}/{char['max_hp']} HP [{status}]")
+            self.broadcast_public_log(
+                f"  {char['name']}: {char['current_hp']}/{char['max_hp']} HP [{status}]"
+            )
         self.broadcast_public_log("=" * 60)
 
     def _wait_for_actor_submit(self, actor_session: PlayerSession) -> Optional[dict]:
@@ -572,7 +676,10 @@ class NetworkGameServer:
                 session.submit_queue.get_nowait()
             except queue.Empty:
                 break
-    def _process_submit(self, actor_session: PlayerSession, actor, payload: dict) -> str:
+
+    def _process_submit(
+        self, actor_session: PlayerSession, actor, payload: dict
+    ) -> str:
         intent = payload.get("intent") or {}
         category = intent.get("category")
         if category == "formal_action":
@@ -582,10 +689,14 @@ class NetworkGameServer:
         self.broadcast_public_log(f"{actor.name} 提交了未知动作，本回合重新猜拳。")
         return "illegal_retry"
 
-    def _process_formal_action(self, actor_session: PlayerSession, actor, intent: dict) -> str:
+    def _process_formal_action(
+        self, actor_session: PlayerSession, actor, intent: dict
+    ) -> str:
         raw_action = str(intent.get("action", "")).strip()
         if not raw_action:
-            self.broadcast_public_log(f"{actor.name} 没有提交有效招式，本回合重新猜拳。")
+            self.broadcast_public_log(
+                f"{actor.name} 没有提交有效招式，本回合重新猜拳。"
+            )
             return "illegal_retry"
         base_action = self._strip_action_suffix(raw_action)
         target = self._get_character_by_session_id(intent.get("target_id"))
@@ -594,38 +705,60 @@ class NetworkGameServer:
         ui_meta = self._build_action_ui_meta(actor, raw_action)
         if ui_meta["auto_multi"]:
             target_info = self.backend.get_action_targets(actor, base_action)
-            selected_targets = target_info.get("targets", []) if not target_info.get("error") else []
+            selected_targets = (
+                target_info.get("targets", []) if not target_info.get("error") else []
+            )
             if not selected_targets:
-                self.broadcast_public_log(f"{actor.name} 尝试使用 {base_action}，但判定为非法。")
+                self.broadcast_public_log(
+                    f"{actor.name} 尝试使用 {base_action}，但判定为非法。"
+                )
                 return "illegal_retry"
-            success = self.backend.execute_player_action(actor, base_action, selected_targets=selected_targets)
+            success = self.backend.execute_player_action(
+                actor, base_action, selected_targets=selected_targets
+            )
             if success:
                 self._apply_skill_cooldown_modifier(actor, base_action)
                 names = "、".join(target_obj.name for target_obj in selected_targets)
-                self.broadcast_public_log(f"{actor.name} 使用了 {base_action}，目标：{names}")
+                self.broadcast_public_log(
+                    f"{actor.name} 使用了 {base_action}，目标：{names}"
+                )
                 return "advance"
-            self.broadcast_public_log(f"{actor.name} 尝试使用 {base_action}，但判定为非法。")
+            self.broadcast_public_log(
+                f"{actor.name} 尝试使用 {base_action}，但判定为非法。"
+            )
             return "illegal_retry"
         if ui_meta["requires_target"]:
             if target is None or not target.is_alive():
-                self.broadcast_public_log(f"{actor.name} 尝试使用 {base_action}，但目标无效。")
+                self.broadcast_public_log(
+                    f"{actor.name} 尝试使用 {base_action}，但目标无效。"
+                )
                 return "illegal_retry"
-            success = self.backend.execute_player_action(actor, base_action, target=target)
+            success = self.backend.execute_player_action(
+                actor, base_action, target=target
+            )
             if success:
                 self._apply_skill_cooldown_modifier(actor, base_action)
-                self.broadcast_public_log(f"{actor.name} 对 {target.name} 使用了 {base_action}")
+                self.broadcast_public_log(
+                    f"{actor.name} 对 {target.name} 使用了 {base_action}"
+                )
                 return "advance"
-            self.broadcast_public_log(f"{actor.name} 对 {target.name} 尝试使用 {base_action}，但判定为非法。")
+            self.broadcast_public_log(
+                f"{actor.name} 对 {target.name} 尝试使用 {base_action}，但判定为非法。"
+            )
             return "illegal_retry"
         success = self.backend.execute_player_action(actor, base_action)
         if success:
             self._apply_skill_cooldown_modifier(actor, base_action)
             self.broadcast_public_log(f"{actor.name} 使用了 {base_action}")
             return "advance"
-        self.broadcast_public_log(f"{actor.name} 尝试使用 {base_action}，但判定为非法。")
+        self.broadcast_public_log(
+            f"{actor.name} 尝试使用 {base_action}，但判定为非法。"
+        )
         return "illegal_retry"
 
-    def _process_behavior(self, actor_session: PlayerSession, actor, intent: dict) -> str:
+    def _process_behavior(
+        self, actor_session: PlayerSession, actor, intent: dict
+    ) -> str:
         behavior = intent.get("behavior")
         target = self._get_character_by_session_id(intent.get("target_id"))
         if self.backend is None:
@@ -635,40 +768,60 @@ class NetworkGameServer:
             return "advance"
         if behavior == "away":
             if self.backend.count_characters_in_block(actor.block_id) <= 1:
-                self.broadcast_public_log(f"{actor.name} 试图远离所有人，但本来就独处。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图远离所有人，但本来就独处。"
+                )
                 return "advance"
             success = self.backend.execute_player_action(actor, "行为:离你远点")
             if success:
                 self.broadcast_public_log(f"{actor.name} 远离了所有人。")
             else:
-                self.broadcast_public_log(f"{actor.name} 试图远离所有人，但没有发生变化。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图远离所有人，但没有发生变化。"
+                )
             return "advance"
         if behavior == "approach":
             if target is None or not target.is_alive():
-                self.broadcast_public_log(f"{actor.name} 试图靠近一个无效目标，什么也没有发生。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图靠近一个无效目标，什么也没有发生。"
+                )
                 return "advance"
             if target is actor:
-                self.broadcast_public_log(f"{actor.name} 试图靠近自己，什么也没有发生。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图靠近自己，什么也没有发生。"
+                )
                 return "advance"
-            success = self.backend.execute_player_action(actor, "行为:到你身边", target=target)
+            success = self.backend.execute_player_action(
+                actor, "行为:到你身边", target=target
+            )
             if success:
                 self.broadcast_public_log(f"{actor.name} 来到了 {target.name} 身边。")
             else:
-                self.broadcast_public_log(f"{actor.name} 试图靠近 {target.name}，但没有发生变化。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图靠近 {target.name}，但没有发生变化。"
+                )
             return "advance"
         if behavior == "search":
             if target is None or not target.is_alive():
-                self.broadcast_public_log(f"{actor.name} 试图寻找一个无效目标，什么也没有发生。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图寻找一个无效目标，什么也没有发生。"
+                )
                 return "advance"
             if not isinstance(target, Ninja) or not target.in_stealth:
-                self.broadcast_public_log(f"{actor.name} 试图寻找 {target.name}，但对方并不处于隐身状态。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图寻找 {target.name}，但对方并不处于隐身状态。"
+                )
                 return "advance"
             with redirect_stdout(io.StringIO()):
                 found = target.be_searched(actor)
             if found:
-                self.broadcast_public_log(f"{actor.name} 成功找出了隐身中的 {target.name}。")
+                self.broadcast_public_log(
+                    f"{actor.name} 成功找出了隐身中的 {target.name}。"
+                )
             else:
-                self.broadcast_public_log(f"{actor.name} 试图寻找 {target.name}，但没有成功。")
+                self.broadcast_public_log(
+                    f"{actor.name} 试图寻找 {target.name}，但没有成功。"
+                )
             return "advance"
         self.broadcast_public_log(f"{actor.name} 提交了未知行动，什么也没有发生。")
         return "advance"
@@ -680,17 +833,26 @@ class NetworkGameServer:
                 if active.character is None or active.character_id is None:
                     continue
                 char = active.character
-                players.append({
-                    "id": active.character_id,
-                    "role_name": char.name,
-                    "owner_name": active.name,
-                    "team": active.team,
-                    "current_hp": char.current_hp,
-                    "max_hp": char.max_hp,
-                    "alive": char.is_alive(),
-                    "is_current_actor": active.character_id == self.current_actor_id,
-                })
-            can_act = self.game_active.is_set() and session.connected and session.character_id == self.current_actor_id and session.character is not None and session.character.is_alive()
+                players.append(
+                    {
+                        "id": active.character_id,
+                        "role_name": char.name,
+                        "owner_name": active.name,
+                        "team": active.team,
+                        "current_hp": char.current_hp,
+                        "max_hp": char.max_hp,
+                        "alive": char.is_alive(),
+                        "is_current_actor": active.character_id
+                        == self.current_actor_id,
+                    }
+                )
+            can_act = (
+                self.game_active.is_set()
+                and session.connected
+                and session.character_id == self.current_actor_id
+                and session.character is not None
+                and session.character.is_alive()
+            )
             formal_actions: List[dict] = []
             if can_act and self.backend is not None and session.character is not None:
                 action_context = self.backend.get_action_context(session.character)
@@ -700,12 +862,16 @@ class NetworkGameServer:
                     if base_action in ("行为:到你身边", "行为:离你远点"):
                         continue
                     meta = self._build_action_ui_meta(session.character, action)
-                    formal_actions.append({
-                        "action": action,
-                        "label": action.replace("技能:", "", 1).replace("行为:", "", 1),
-                        "requires_target": meta["requires_target"],
-                        "auto_multi": meta["auto_multi"],
-                    })
+                    formal_actions.append(
+                        {
+                            "action": action,
+                            "label": action.replace("技能:", "", 1).replace(
+                                "行为:", "", 1
+                            ),
+                            "requires_target": meta["requires_target"],
+                            "auto_multi": meta["auto_multi"],
+                        }
+                    )
             return {
                 "game_active": self.game_active.is_set(),
                 "round": self.backend.round_count if self.backend is not None else 0,
@@ -729,15 +895,34 @@ class NetworkGameServer:
                 return
             target = target_session.character
             self.send_private_log(session, f"[查看] {target.name}")
-            self.send_private_log(session, f"操控玩家：{target_session.name} / 队伍：{target_session.team}")
-            self.send_private_log(session, f"生命值：{target.current_hp}/{target.max_hp} ({'存活' if target.is_alive() else '阵亡'})")
+            self.send_private_log(
+                session,
+                f"操控玩家：{target_session.name} / 队伍：{target_session.team}",
+            )
+            self.send_private_log(
+                session,
+                f"生命值：{target.current_hp}/{target.max_hp} ({'存活' if target.is_alive() else '阵亡'})",
+            )
             if target.skills:
                 self.send_private_log(session, "技能冷却：")
                 for skill_name, skill in target.skills.items():
-                    self.send_private_log(session, f"  - {skill_name}: CD {skill.get_cooldown()} / 基础 {skill.get_base_cooldown()}")
-            self.send_private_log(session, f"控制效果：{dict(target.control) if target.control else '无'}")
-            self.send_private_log(session, f"印记：{dict(target.imprints) if target.imprints else '无'}")
-            self.send_private_log(session, f"积累：{dict(target.accumulations) if target.accumulations else '无'}")
+                    self.send_private_log(
+                        session,
+                        f"  - {skill_name}: CD {skill.get_cooldown()} / 基础 {skill.get_base_cooldown()}",
+                    )
+            self.send_private_log(
+                session, f"控制效果：{dict(target.control) if target.control else '无'}"
+            )
+            self.send_private_log(
+                session, f"印记：{dict(target.imprints) if target.imprints else '无'}"
+            )
+            self.send_private_log(
+                session, f"资源：{dict(target.resources) if target.resources else '无'}"
+            )
+            self.send_private_log(
+                session,
+                f"战斗修正：{dict(target.modifiers) if target.modifiers else '无'}",
+            )
             self.send_private_log(session, f"所在位置块：{target.block_id}")
 
     def _apply_skill_cooldown_modifier(self, actor, action: str):
@@ -756,10 +941,14 @@ class NetworkGameServer:
 
     @staticmethod
     def _strip_action_suffix(action: str) -> str:
-        prefix = "技能:" if action.startswith("技能:") else "行为:" if action.startswith("行为:") else None
+        prefix = (
+            "技能:"
+            if action.startswith("技能:")
+            else "行为:" if action.startswith("行为:") else None
+        )
         if prefix is None:
             return action
-        content = action[len(prefix):]
+        content = action[len(prefix) :]
         return prefix + content.split("(", 1)[0].strip()
 
     def _build_action_ui_meta(self, character, action: str) -> dict:
@@ -789,6 +978,7 @@ class NetworkGameServer:
         session = self._get_session_by_character_id(character_id)
         return None if session is None else session.character
 
+
 def main():
     parser = argparse.ArgumentParser(description="Quanzhi 联网服务端")
     parser.add_argument("--host", default=DEFAULT_HOST, help="监听地址，默认 0.0.0.0")
@@ -801,6 +991,7 @@ def main():
         print("\n[服务端] 收到中断信号，准备退出。")
     finally:
         server.shutdown()
+
 
 if __name__ == "__main__":
     main()

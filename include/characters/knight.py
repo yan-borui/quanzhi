@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Knight.py
+from core.event_log import emit
 import copy
 from typing import Optional, Dict
 
@@ -44,31 +45,31 @@ class Knight(Character):
     def use_skill(self, skill_name: str):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
         if skill_name == "盾":
             if self.shield_charges <= 0:
-                print(f"盾技能使用次数已用完！")
+                emit(f"盾技能使用次数已用完！")
                 return
             if not self.can_use_shield():
-                print(f"{self.name} 当前不满足使用盾的条件！")
+                emit(f"{self.name} 当前不满足使用盾的条件！")
                 return
             success = skill.execute_with_target(self, self)
             if success:
-                print(f"{self.name} 使用了 {skill_name}")
+                emit(f"{self.name} 使用了 {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
         success = skill.execute_with_target(self, self)
         if success:
-            print(f"{self.name} 使用了 {skill_name}")
+            emit(f"{self.name} 使用了 {skill_name}")
 
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if skill_name == "盾":
@@ -77,12 +78,30 @@ class Knight(Character):
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+
+    def available_when_controlled_actions(self, battle):
+        return ["技能:盾"] if self.can_use_shield() else []
+
+    def available_when_defeated_actions(self, battle):
+        return ["技能:盾"] if self.can_use_shield() else []
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        if skill_name != "盾":
+            return super().describe_skill_action(skill_name, skill, battle)
+
+        if self.can_use_shield():
+            return f"技能:{skill_name}"
+        if self.shield_charges <= 0:
+            return self.format_skill_action(skill_name, skill, "无次数")
+        if len(self.state_history) < 2:
+            return self.format_skill_action(skill_name, skill, "历史不足")
+        return self.format_skill_action(skill_name, skill, "不可用")
 
     def _fearless_charge_effect(
         self, caster: Character, target: Optional[Character]
@@ -111,8 +130,8 @@ class Knight(Character):
         self.control_shield_window_round = None
 
         if len(self.turn_effects_history) < 2:
-            print(f"{self.name} 没有上一回合的记录，盾无效果")
-            print(f"盾技能剩余使用次数: {self.shield_charges}")
+            emit(f"{self.name} 没有上一回合的记录，盾无效果")
+            emit(f"盾技能剩余使用次数: {self.shield_charges}")
             return True  # 依旧消耗次数
 
         last_turn = self.turn_effects_history[-2]
@@ -145,10 +164,10 @@ class Knight(Character):
             "imprint_add": {},
         }
 
-        print(
+        emit(
             f"{self.name} 使用盾，抵消了上一回合的伤害、控制与新增印记！ (返还{dmg}伤害)"
         )
-        print(f"盾技能剩余使用次数: {self.shield_charges}")
+        emit(f"盾技能剩余使用次数: {self.shield_charges}")
         return True
 
     def on_turn_start(self):
@@ -186,7 +205,7 @@ class Knight(Character):
         self.state_history.append(current_state)
         if len(self.state_history) > self.max_history_size:
             self.state_history.pop(0)
-        print(f"{self.name} 记录状态，历史状态数: {len(self.state_history)}")
+        emit(f"{self.name} 记录状态，历史状态数: {len(self.state_history)}")
 
     def _capture_state(self) -> Dict:
         """捕获当前状态（不包括block_id）"""
@@ -194,7 +213,8 @@ class Knight(Character):
             "current_hp": self.current_hp,
             "control": copy.deepcopy(self.control),
             "imprints": copy.deepcopy(self.imprints),
-            "accumulations": copy.deepcopy(self.accumulations),
+            "resources": copy.deepcopy(self.resources),
+            "modifiers": copy.deepcopy(self.modifiers),
         }
 
     def _restore_state(self, state: Dict):
@@ -202,10 +222,13 @@ class Knight(Character):
         self.current_hp = state["current_hp"]
         self.control = copy.deepcopy(state["control"])
         self.imprints = copy.deepcopy(state["imprints"])
-        self.accumulations = copy.deepcopy(state["accumulations"])
+        self.resources = copy.deepcopy(state.get("resources", {}))
+        self.modifiers = copy.deepcopy(state.get("modifiers", {}))
+        if "accumulations" in state:
+            self.accumulations = copy.deepcopy(state["accumulations"])
         if self.current_hp > self.max_hp:
             self.current_hp = self.max_hp
-        print(f"{self.name} 状态已回退: HP={self.current_hp}, 控制={self.control}")
+        emit(f"{self.name} 状态已回退: HP={self.current_hp}, 控制={self.control}")
 
     def can_use_shield(self) -> bool:
         """检查是否可以使用盾技能"""
@@ -227,11 +250,11 @@ class Knight(Character):
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 举盾冲锋！")
+            emit(f"{self.name} 举盾冲锋！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 持盾后撤！")
+            emit(f"{self.name} 持盾后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 集中意志抵抗控制效果！")
+            emit(f"{self.name} 集中意志抵抗控制效果！")
 
     def reset_battle_round(self):
         """重置战斗回合状态（每局开始调用）"""
@@ -244,19 +267,19 @@ class Knight(Character):
         self.death_shield_window_round = None
         self.control_shield_window_open = False
         self.control_shield_window_round = None
-        print(f"{self.name} 准备就绪，盾技能使用次数重置为5，历史状态已清空")
+        emit(f"{self.name} 准备就绪，盾技能使用次数重置为5，历史状态已清空")
 
     # 供外部（Game）调用的辅助方法
     def open_death_shield_window(self, allowed_round: int):
         """骑士死亡时，开启仅限下回合的盾使用窗口"""
         self.death_shield_window_active = True
         self.death_shield_window_round = allowed_round
-        print(f"{self.name} 陷入濒死，盾可在第 {allowed_round} 回合尝试使用！")
+        emit(f"{self.name} 陷入濒死，盾可在第 {allowed_round} 回合尝试使用！")
 
     def expire_death_shield_window(self):
         """关闭死亡后的盾使用窗口"""
         if self.death_shield_window_active:
-            print(f"{self.name} 失去死亡后盾的机会！")
+            emit(f"{self.name} 失去死亡后盾的机会！")
         self.death_shield_window_active = False
         self.death_shield_window_round = None
 

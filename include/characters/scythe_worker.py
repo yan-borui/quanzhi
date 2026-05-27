@@ -12,6 +12,7 @@
 使用 StateBindingSystem 实现"对另一人使用时第一个破"和"死时带走目标"机制。
 """
 
+from core.event_log import emit
 from typing import Optional, Set
 
 from core.behavior import BehaviorType
@@ -68,25 +69,55 @@ class ScytheWorker(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         # 挥镰特殊条件：目标仍被挥镰控制时不可再次对其使用
         if skill_name == "挥镰":
             target_id = id(target)
             if target_id in self._swing_controlled_targets:
-                print(
+                emit(
                     f"{target.get_name()} 仍被挥镰控制中，需等其解控后才可再次使用挥镰！"
                 )
                 return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        if skill_name == "飞镰斩":
+            slash_targets = [
+                c
+                for c in battle.alive_characters
+                if c.has_control("飞镰") and c.is_targetable()
+            ]
+            if slash_targets:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无飞镰目标")
+
+        if skill_name == "黑暗飞镰":
+            dark_target = self._dark_scythe_target
+            if dark_target and dark_target.is_alive():
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无飞镰斩")
+
+        if skill_name == "挥镰":
+            swing_targets = [
+                c
+                for c in battle.alive_characters
+                if (c is self or c.is_targetable())
+                and id(c) not in self._swing_controlled_targets
+            ]
+            if swing_targets:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无有效目标")
+
+        return super().describe_skill_action(skill_name, skill, battle)
 
     # --- 飞镰绑定/解绑回调 ---
 
@@ -134,7 +165,7 @@ class ScytheWorker(Character):
             state_name="飞镰",
             auto_unbind_old=True,  # 对另一人使用时自动解除旧目标
         )
-        print(f"{self.name} 用飞镰锁定了 {target.get_name()}！死亡时将带走目标！")
+        emit(f"{self.name} 用飞镰锁定了 {target.get_name()}！死亡时将带走目标！")
         return True
 
     def _scythe_slash_effect(
@@ -144,7 +175,7 @@ class ScytheWorker(Character):
         if not target:
             return False
         if not target.has_control("飞镰"):
-            print(f"{target.get_name()} 身上没有飞镰标记，无法使用飞镰斩！")
+            emit(f"{target.get_name()} 身上没有飞镰标记，无法使用飞镰斩！")
             return False
         target.take_damage(self.apply_attack_buff(9))
         self._slash_target_pending = target
@@ -157,7 +188,7 @@ class ScytheWorker(Character):
         if not target:
             return False
         if self._dark_scythe_target is not target:
-            print(f"黑暗飞镰只能对上回合被飞镰斩命中的目标使用！")
+            emit(f"黑暗飞镰只能对上回合被飞镰斩命中的目标使用！")
             return False
         target.take_damage(self.apply_attack_buff(12))
         self._dark_scythe_target = None
@@ -195,7 +226,7 @@ class ScytheWorker(Character):
         # 检查飞镰绑定
         bound_target = self.state_binding_system.get_bound_target(self, "飞镰")
         if bound_target and bound_target.is_alive():
-            print(f"{self.name} 死亡触发飞镰效果，带走了 {bound_target.get_name()}！")
+            emit(f"{self.name} 死亡触发飞镰效果，带走了 {bound_target.get_name()}！")
             # 清除绑定先（避免循环触发）
             self.state_binding_system.unbind_state(self, "飞镰")
             # 击杀目标：设置HP为0并触发其死亡
@@ -215,24 +246,24 @@ class ScytheWorker(Character):
             bound = self.state_binding_system.get_bound_target(self, "飞镰")
             if bound is target:
                 self.state_binding_system.unbind_state(self, "飞镰")
-                print(f"{target.get_name()} 解除了飞镰锁定！")
+                emit(f"{target.get_name()} 解除了飞镰锁定！")
 
         elif control_name == "挥镰":
             bound = self.state_binding_system.get_bound_target(self, "挥镰")
             if bound is target:
                 self.state_binding_system.unbind_state(self, "挥镰")
                 self._swing_controlled_targets.discard(id(target))
-                print(f"{target.get_name()} 解除了挥镰控制，可再次对其使用挥镰！")
+                emit(f"{target.get_name()} 解除了挥镰控制，可再次对其使用挥镰！")
 
     def on_behavior_change(
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 挥舞镰刀向前逼近！")
+            emit(f"{self.name} 挥舞镰刀向前逼近！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 后跳拉开距离！")
+            emit(f"{self.name} 后跳拉开距离！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 切断锁链挣脱束缚！")
+            emit(f"{self.name} 切断锁链挣脱束缚！")
 
     def reset_battle_round(self):
         """新一局重置"""
@@ -240,7 +271,7 @@ class ScytheWorker(Character):
         self._slash_target_pending = None
         self._dark_scythe_target = None
         self.state_binding_system.unbind_all_from_source(self)
-        print(f"{self.name} 准备就绪，所有绑定已重置")
+        emit(f"{self.name} 准备就绪，所有绑定已重置")
 
 
 SCYTHE_WORKER_SKILLS_DATA = {

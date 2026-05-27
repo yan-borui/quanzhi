@@ -14,6 +14,7 @@
 - 电子眼对目标使用，调用目标的 be_found_directly 方法
 """
 
+from core.event_log import emit
 from typing import Optional
 
 from core.behavior import BehaviorType
@@ -49,16 +50,16 @@ class Mechanic(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
     # --- 技能效果函数 ---
 
@@ -92,7 +93,7 @@ class Mechanic(Character):
             return False
 
         if target.stealth <= 0:
-            print(f"{target.get_name()} 当前未隐身，无需使用电子眼")
+            emit(f"{target.get_name()} 当前未隐身，无需使用电子眼")
             return False
 
         # 调用目标的 be_found_directly 方法（如忍者已实现此接口）
@@ -101,7 +102,7 @@ class Mechanic(Character):
         else:
             # 通用处理：直接清除隐身
             target.stealth = 0
-            print(f"{self.name} 的电子眼直接找出了 {target.get_name()}！")
+            emit(f"{self.name} 的电子眼直接找出了 {target.get_name()}！")
 
         return True
 
@@ -109,11 +110,11 @@ class Mechanic(Character):
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 操纵机械向前推进！")
+            emit(f"{self.name} 操纵机械向前推进！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 启动推进器后撤！")
+            emit(f"{self.name} 启动推进器后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 激活电磁脉冲挣脱束缚！")
+            emit(f"{self.name} 激活电磁脉冲挣脱束缚！")
 
 
 MECHANIC_SKILLS_DATA = {

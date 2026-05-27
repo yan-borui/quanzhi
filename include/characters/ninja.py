@@ -16,6 +16,7 @@
 - 使用樱花岁月或忍法地心时自动破除铁索覆身
 """
 
+from core.event_log import emit
 from typing import Optional
 
 from core.behavior import BehaviorType
@@ -74,29 +75,47 @@ class Ninja(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         # 摔的条件检查：目标必须有铁索覆身控制
         if skill_name == "摔":
             bound_target = self.state_binding_system.get_bound_target(self, "铁索覆身")
             if bound_target is not target or not target.has_control("铁索覆身"):
-                print(f"摔需要目标被铁索覆身锁定！")
+                emit(f"摔需要目标被铁索覆身锁定！")
                 return
 
         # 偷袭的条件检查：必须处于忍法地心隐身
         if skill_name == "偷袭":
             if not self._in_stealth:
-                print(f"偷袭需要先使用忍法地心进入隐身状态！")
+                emit(f"偷袭需要先使用忍法地心进入隐身状态！")
                 return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+
+    def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
+        if skill_name == "摔":
+            bound_target = self.state_binding_system.get_bound_target(self, "铁索覆身")
+            if (
+                bound_target
+                and bound_target.has_control("铁索覆身")
+                and bound_target.is_alive()
+            ):
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "无铁索目标")
+
+        if skill_name == "偷袭":
+            if self._in_stealth:
+                return self.format_skill_action(skill_name, skill)
+            return self.format_skill_action(skill_name, skill, "需隐身")
+
+        return super().describe_skill_action(skill_name, skill, battle)
 
     # --- 铁索覆身绑定/解绑回调 ---
 
@@ -112,7 +131,7 @@ class Ninja(Character):
     def _break_chain_binding(self):
         """破除铁索覆身绑定（樱花岁月或忍法地心使用时调用）"""
         if self.state_binding_system.is_bound(self, "铁索覆身"):
-            print(f"{self.name} 使用技能，铁索覆身绑定被破除！")
+            emit(f"{self.name} 使用技能，铁索覆身绑定被破除！")
             self.state_binding_system.unbind_state(self, "铁索覆身")
 
     # --- 技能效果函数 ---
@@ -146,7 +165,7 @@ class Ninja(Character):
             state_name="铁索覆身",
             auto_unbind_old=True,  # 对另一人使用时自动解除旧目标
         )
-        print(f"{self.name} 用铁索覆身锁定了 {target.get_name()}！")
+        emit(f"{self.name} 用铁索覆身锁定了 {target.get_name()}！")
         return True
 
     def _throw_effect(self, caster: Character, target: Optional[Character]) -> bool:
@@ -167,7 +186,7 @@ class Ninja(Character):
 
         self._in_stealth = True
         self.stealth = 1
-        print(f"{self.name} 使用忍法地心，遁入地中隐身！")
+        emit(f"{self.name} 使用忍法地心，遁入地中隐身！")
         return True
 
     def _sneak_attack_effect(
@@ -196,10 +215,10 @@ class Ninja(Character):
             bool: 是否成功找出忍者
         """
         if not self._in_stealth:
-            print(f"{self.name} 当前未隐身，无需搜索")
+            emit(f"{self.name} 当前未隐身，无需搜索")
             return True
 
-        print(f"{searcher.get_name()} 正在搜索 {self.name}...")
+        emit(f"{searcher.get_name()} 正在搜索 {self.name}...")
 
         result = self.dual_judgment_system.judge(searcher, self, "忍法地心")
 
@@ -207,11 +226,11 @@ class Ninja(Character):
             # 搜索者获胜，忍者被找出
             self._in_stealth = False
             self.stealth = 0
-            print(f"{searcher.get_name()} 成功找出了 {self.name}！忍者脱离隐身！")
+            emit(f"{searcher.get_name()} 成功找出了 {self.name}！忍者脱离隐身！")
             return True
         else:
             # 忍者获胜，继续隐身
-            print(f"{searcher.get_name()} 未能找到 {self.name}，忍者继续隐身！")
+            emit(f"{searcher.get_name()} 未能找到 {self.name}，忍者继续隐身！")
             return False
 
     def be_found_directly(self, finder: Character):
@@ -221,7 +240,7 @@ class Ninja(Character):
         if self._in_stealth:
             self._in_stealth = False
             self.stealth = 0
-            print(f"{self.name} 被 {finder.get_name()} 直接找出！")
+            emit(f"{self.name} 被 {finder.get_name()} 直接找出！")
 
     @property
     def in_stealth(self) -> bool:
@@ -237,32 +256,32 @@ class Ninja(Character):
             bound = self.state_binding_system.get_bound_target(self, "铁索覆身")
             if bound is target:
                 self.state_binding_system.unbind_state(self, "铁索覆身")
-                print(f"{target.get_name()} 挣脱了铁索覆身！")
+                emit(f"{target.get_name()} 挣脱了铁索覆身！")
 
     def take_damage(self, damage: int):
         """受伤时脱离隐身"""
         if self._in_stealth and damage > 0:
             self._in_stealth = False
             self.stealth = 0
-            print(f"{self.name} 受到伤害，脱离隐身状态！")
+            emit(f"{self.name} 受到伤害，脱离隐身状态！")
         super().take_damage(damage)
 
     def on_behavior_change(
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]
     ):
         if new_behavior == BehaviorType.MOVE_CLOSE:
-            print(f"{self.name} 悄然潜近！")
+            emit(f"{self.name} 悄然潜近！")
         elif new_behavior == BehaviorType.MOVE_AWAY:
-            print(f"{self.name} 施展轻功后撤！")
+            emit(f"{self.name} 施展轻功后撤！")
         elif new_behavior == BehaviorType.REMOVE_CONTROL:
-            print(f"{self.name} 运用忍术挣脱束缚！")
+            emit(f"{self.name} 运用忍术挣脱束缚！")
 
     def reset_battle_round(self):
         """新一局重置"""
         self._in_stealth = False
         self.stealth = 0
         self.state_binding_system.unbind_all_from_source(self)
-        print(f"{self.name} 准备就绪，所有状态已重置")
+        emit(f"{self.name} 准备就绪，所有状态已重置")
 
 
 NINJA_SKILLS_DATA = {

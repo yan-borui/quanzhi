@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # array_master.py
+from core.event_log import emit
 from typing import Optional, Callable
 
 from core.character import Character
@@ -16,13 +17,7 @@ class ArrayMaster(Character):
         self._initialize_skills()
 
     def _initialize_skills(self):
-        skill_defs = {
-            "瘟阵": 0,
-            "灰阵": 0,
-            "风阵": 0,
-            "火阵": 2,
-            "五彩法阵": 0
-        }
+        skill_defs = {"瘟阵": 0, "灰阵": 0, "风阵": 0, "火阵": 2, "五彩法阵": 0}
         for skill_name, cd in skill_defs.items():
             skill = Skill(skill_name, cooldown=cd)
             skill.set_effect(getattr(self, f"_{skill_name}_effect"))
@@ -34,20 +29,26 @@ class ArrayMaster(Character):
     def use_skill_on_target(self, skill_name: str, target: Character):
         skill = self.get_skill(skill_name)
         if not skill:
-            print(f"{self.name} 没有技能: {skill_name}")
+            emit(f"{self.name} 没有技能: {skill_name}")
             return
 
         if not skill.is_available():
-            print(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
             return
 
         success = skill.execute_with_target(self, target)
         if success:
-            print(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
 
-    def _add_array_control(self, target: Character, name: str, control_key: str, extra: Optional[Callable[[], None]] = None):
+    def _add_array_control(
+        self,
+        target: Character,
+        name: str,
+        control_key: str,
+        extra: Optional[Callable[[], None]] = None,
+    ):
         if target.has_control(control_key):
-            print(f"{target.get_name()} 已有{control_key}控制，无法叠加")
+            emit(f"{target.get_name()} 已有{control_key}控制，无法叠加")
             return False
         target.add_control(control_key, 1)
         if extra:
@@ -82,22 +83,40 @@ class ArrayMaster(Character):
             return False
         required = ["瘟阵", "灰阵", "风阵", "火阵"]
         if not all(target.has_control(c) for c in required):
-            print(f"{target.get_name()} 缺少必要的四个阵，无法发动五彩法阵")
+            emit(f"{target.get_name()} 缺少必要的四个阵，无法发动五彩法阵")
             return False
         result = _DUAL_JUDGMENT_SYSTEM.judge(caster, target, "五彩法阵")
         if result == JudgmentResult.INITIATOR_WIN:
             target.take_damage(self.apply_attack_buff(60))
             return True
-        print(f"{caster.get_name()} 在五彩法阵判定中未获胜（结果: {result.value}），技能未成功发动")
+        emit(
+            f"{caster.get_name()} 在五彩法阵判定中未获胜（结果: {result.value}），技能未成功发动"
+        )
         return False
 
 
 ARRAY_MASTER_SKILLS_DATA = {
-    "瘟阵": {"name": "瘟阵", "cooldown": 0, "damage": 0, "effect": "控制，不可叠", "common": True},
+    "瘟阵": {
+        "name": "瘟阵",
+        "cooldown": 0,
+        "damage": 0,
+        "effect": "控制，不可叠",
+        "common": True,
+    },
     "灰阵": {"name": "灰阵", "cooldown": 0, "damage": 0, "effect": "控制，不可叠"},
-    "风阵": {"name": "风阵", "cooldown": 0, "damage": 0, "effect": "控制，不可叠，近程控，目标不能使用近程技能"},
+    "风阵": {
+        "name": "风阵",
+        "cooldown": 0,
+        "damage": 0,
+        "effect": "控制，不可叠，近程控，目标不能使用近程技能",
+    },
     "火阵": {"name": "火阵", "cooldown": 2, "damage": 0, "effect": "持续，不可叠"},
-    "五彩法阵": {"name": "五彩法阵", "cooldown": 0, "damage": 60, "effect": "需四阵齐全并判定"}
+    "五彩法阵": {
+        "name": "五彩法阵",
+        "cooldown": 0,
+        "damage": 60,
+        "effect": "需四阵齐全并判定",
+    },
 }
 
 ARRAY_MASTER_STATS_DATA = {
@@ -106,5 +125,5 @@ ARRAY_MASTER_STATS_DATA = {
     "control": {},
     "stealth": 0,
     "role_type": "控制型",
-    "description": "布阵削弱敌人并引爆五彩法阵的控制型角色"
+    "description": "布阵削弱敌人并引爆五彩法阵的控制型角色",
 }
