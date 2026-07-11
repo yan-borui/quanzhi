@@ -54,6 +54,7 @@ class GameBackend:
             if isinstance(char, Ninja):
                 char.set_state_binding_system(self.state_binding_system)
                 char.set_dual_judgment_system(self.dual_judgment_system)
+                char.set_continuous_effect_system(self.continuous_effect_system)
             if isinstance(char, Scholar):
                 char.set_continuous_effect_system(self.continuous_effect_system)
 
@@ -218,6 +219,15 @@ class GameBackend:
             "success": True,
             "message": f"{character.name} 移动到块 {target_block_id}",
         }
+
+    def move_character_to_random_new_block(self, character: Character):
+        """将角色移动到一个随机且当前未占用的新地块。"""
+        occupied_blocks = {char.block_id for char in self.all_characters}
+        occupied_blocks.update(self.continuous_effect_system.block_effects)
+        new_block_id = random.randint(1, 2**31 - 1)
+        while new_block_id in occupied_blocks:
+            new_block_id = random.randint(1, 2**31 - 1)
+        return self.move_character_to_block(character, new_block_id)
 
     def _trigger_continuous_effects(self):
         for char in list(self.all_characters):
@@ -729,6 +739,7 @@ class GameBackend:
                     return True
                 if skill_name == "忍法地心" and isinstance(character, Ninja):
                     self._execute_silently(character.use_skill, skill_name)
+                    self.move_character_to_random_new_block(character)
                     return True
 
             if not targets:

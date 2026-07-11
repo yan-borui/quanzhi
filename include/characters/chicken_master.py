@@ -113,6 +113,7 @@ class ChickenMaster(Character):
         如果拥有 n≥4 个空投，标记复活待处理。
         复活后血量为 3n，清除所有空投。
         """
+        self.prepare_for_death()
         if self.can_revive():
             n = self.airdrop_count
             self._revive_hp = 3 * n
@@ -142,8 +143,7 @@ class ChickenMaster(Character):
             self.max_hp = revive_hp
             self.current_hp = revive_hp
             emit(
-                f"{self.name} 通过空投复活！"
-                f"当前生命值: {self.current_hp}/{self.max_hp}"
+                f"{self.name} 通过空投复活！当前生命值: {self.current_hp}/{self.max_hp}"
             )
             return True
         return False
@@ -167,6 +167,8 @@ class ChickenMaster(Character):
 
     def reset_battle_round(self):
         """新一局重置：清除空投累积"""
+        self.set_max_hp(60)
+        self.set_current_hp(60)
         self.clear_resource("空投")
         self._pending_revive = False
         self._revive_hp = 0

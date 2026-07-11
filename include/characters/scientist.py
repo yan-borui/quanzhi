@@ -251,6 +251,7 @@ class Scientist(Character):
         科学家死亡时触发：
         如果有机器人，转移到机器人上只能使用撸或机器人自爆。
         """
+        self.prepare_for_death()
         if self.robot_count > 0 and not self._in_robot_mode:
             self._in_robot_mode = True
             # 复活到机器人上，以1HP存活（标记状态）
@@ -275,10 +276,7 @@ class Scientist(Character):
         科学家在机器人模式下受伤时，损失一个命名机器人而非生命值。
         """
         if self._in_robot_mode and self.robot_count > 0:
-            # 单次护盾效果
-            if self.has_control("护盾"):
-                self.clear_control("护盾")
-                emit(f"{self.name} 的护盾抵消了这次攻击！")
+            if self.absorb_damage_with_shield(damage):
                 return
 
             # 摧毁第一个存活的命名机器人
@@ -312,6 +310,8 @@ class Scientist(Character):
 
     def reset_battle_round(self):
         """新一局重置：清除电池和所有命名机器人"""
+        self.set_max_hp(60)
+        self.set_current_hp(60)
         self.clear_resource("电池")
         for robot in self._named_robots:
             robot.current_hp = 0

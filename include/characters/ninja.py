@@ -21,7 +21,9 @@ from typing import Optional
 
 from core.behavior import BehaviorType
 from core.character import Character
+from core.status_effects import get_control_definition
 from core.skill import Skill
+from systems.continuous_effect import ContinuousEffectSystem
 from systems.state_binding import StateBindingSystem
 from systems.dual_judgment import DualJudgmentSystem, JudgmentResult
 
@@ -37,6 +39,7 @@ class Ninja(Character):
         # 系统引用（由GameBackend注入或使用默认）
         self.state_binding_system: StateBindingSystem = _state_binding_system
         self.dual_judgment_system: DualJudgmentSystem = _dual_judgment_system
+        self.continuous_effect_system = ContinuousEffectSystem()
         # 忍法地心状态标记
         self._in_stealth = False
 
@@ -47,6 +50,10 @@ class Ninja(Character):
     def set_dual_judgment_system(self, system: DualJudgmentSystem):
         """由GameBackend调用注入系统级的判定系统"""
         self.dual_judgment_system = system
+
+    def set_continuous_effect_system(self, system: ContinuousEffectSystem):
+        """由 GameBackend 注入对局级持续效果系统。"""
+        self.continuous_effect_system = system
 
     def _initialize_skills(self):
         sakura = Skill("樱花岁月", cooldown=2)
@@ -183,6 +190,12 @@ class Ninja(Character):
         """
         # 使用忍法地心会破除铁索覆身
         self._break_chain_binding()
+
+        # 清除角色身上的持续伤害；地块持续伤害由后端随后迁移地块规避。
+        for control_name in list(self.control):
+            if get_control_definition(control_name).category == "turn_damage":
+                self.clear_control(control_name)
+        self.continuous_effect_system.clear_all_effects(self)
 
         self._in_stealth = True
         self.stealth = 1

@@ -188,16 +188,35 @@ class Character(ABC):
             return base_damage + buff
         return base_damage
 
+    def absorb_damage_with_shield(self, damage: int) -> bool:
+        """结算通用护盾/立盾；返回本次伤害是否已被完全承担。"""
+        if self.has_control("护盾"):
+            self.clear_control("护盾")
+            emit(f"{self.name} 的护盾抵消了这次攻击！")
+            return True
+
+        shield_hp = self.get_modifier("立盾")
+        if shield_hp <= 0:
+            return False
+
+        self.reduce_modifier("立盾", damage)
+        remaining_shield = self.get_modifier("立盾")
+        if remaining_shield > 0:
+            emit(
+                f"{self.name} 的立盾承受了 {damage} 点伤害，"
+                f"立盾剩余血量: {remaining_shield}"
+            )
+        else:
+            emit(f"{self.name} 的立盾被打破！")
+        return True
+
     # 受伤并显示（确保边界）
     def take_damage(self, damage: int):
         if damage <= 0:
             emit(f"{self.name} 未受到有效伤害: {damage}")
             return
 
-        # 单次护盾效果：抵消一次攻击后消失
-        if self.has_control("护盾"):
-            self.clear_control("护盾")
-            emit(f"{self.name} 的护盾抵消了这次攻击！")
+        if self.absorb_damage_with_shield(damage):
             return
 
         # 易伤效果：受到伤害增加，然后消耗易伤
@@ -221,9 +240,7 @@ class Character(ABC):
         )
 
         if was_alive and self.is_destroyed():
-            if self.control:
-                emit(f"{self.name} 死亡时清除了所有控制效果")
-                self.clear_all_controls()
+            self.prepare_for_death()
             self.on_destroy()
 
     # 治疗并显示
@@ -593,5 +610,12 @@ class Character(ABC):
     def on_summon(self):
         emit(f"{self.name} 被召唤到战场！")
 
+    def prepare_for_death(self):
+        """统一死亡前清理，供伤害和直接死亡路径复用。"""
+        if self.control:
+            emit(f"{self.name} 死亡时清除了所有控制效果")
+            self.clear_all_controls()
+
     def on_destroy(self):
+        self.prepare_for_death()
         emit(f"{self.name} 从战场上消失！")
