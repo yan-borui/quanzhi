@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import argparse
@@ -937,14 +937,16 @@ class NetworkGameServer:
             skill.set_cooldown(0)
             return
         if current_cd > 0 and self.match_modifiers.cd_multiplier != 1:
-            skill.set_cooldown(current_cd * self.match_modifiers.cd_multiplier)
+            skill.scale_cooldown(self.match_modifiers.cd_multiplier)
 
     @staticmethod
     def _strip_action_suffix(action: str) -> str:
         prefix = (
             "技能:"
             if action.startswith("技能:")
-            else "行为:" if action.startswith("行为:") else None
+            else "行为:"
+            if action.startswith("行为:")
+            else None
         )
         if prefix is None:
             return action

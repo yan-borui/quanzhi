@@ -15,19 +15,19 @@ class Swordsman(Character):
         self.invincible_strike_used = set()
 
     def _initialize_skills(self):
-        effortless_slash = Skill("游刃斩", cooldown=2)
+        effortless_slash = Skill("游刃斩", cooldown=1)
         effortless_slash.set_effect(self._effortless_slash_effect)
         self.add_or_replace_skill(effortless_slash)
 
-        whirlwind_slash = Skill("回旋斩", cooldown=2)
+        whirlwind_slash = Skill("回旋斩", cooldown=1)
         whirlwind_slash.set_effect(self._whirlwind_slash_effect)
         self.add_or_replace_skill(whirlwind_slash)
 
-        lightning_strike = Skill("闪电劈", cooldown=1)
+        lightning_strike = Skill("闪电劈", cooldown=0)
         lightning_strike.set_effect(self._lightning_strike_effect)
         self.add_or_replace_skill(lightning_strike)
 
-        invincible_thrust = Skill("无敌刺", cooldown=1)
+        invincible_thrust = Skill("无敌刺", cooldown=0)
         invincible_thrust.set_effect(self._invincible_thrust_effect)
         self.add_or_replace_skill(invincible_thrust)
 
@@ -104,7 +104,7 @@ class Swordsman(Character):
             target.take_damage(damage)
             target.add_imprint("剑意", 1)
 
-        skill.set_cooldown(skill.get_base_cooldown())
+        skill.start_cooldown()
         return True
 
     def _effortless_slash_effect(

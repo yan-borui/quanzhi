@@ -158,9 +158,9 @@ class Warlock(Character):
         self._death_gate_initial_count = 0
         death_gate_skill = self.get_skill("死亡之门")
         if death_gate_skill:
-            death_gate_skill.set_cooldown(2)
+            death_gate_skill.start_cooldown(2)
 
-        skill.set_cooldown(skill.get_base_cooldown())
+        skill.start_cooldown()
         return True
 
     # --- 技能效果函数 ---

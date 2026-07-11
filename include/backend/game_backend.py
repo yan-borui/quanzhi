@@ -857,7 +857,7 @@ class GameBackend:
                     char._death_gate_initial_count = 0
                     death_gate_skill = char.get_skill("死亡之门")
                     if death_gate_skill:
-                        death_gate_skill.set_cooldown(2)
+                        death_gate_skill.start_cooldown(2)
 
 
 class Game(GameBackend):

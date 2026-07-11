@@ -109,7 +109,7 @@ class DiscMaster(Character):
             f"当前光盘: {self.disc_count}"
         )
 
-        skill.set_cooldown(skill.get_base_cooldown())
+        skill.start_cooldown()
         return True
 
     # --- 技能效果函数 ---

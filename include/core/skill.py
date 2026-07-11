@@ -28,6 +28,7 @@ class Skill:
         self.name = name
         self.base_cooldown = max(0, cooldown)
         self.cooldown = 0
+        self._cooldown_just_started = False
 
         # 技能效果回调函数：参数为施法者和可选目标，返回是否施放成功
         self.effect = effect
@@ -50,10 +51,29 @@ class Skill:
 
     # 设置当前冷却
     def set_cooldown(self, cd: int):
+        """直接设置内部剩余计数；技能施放后应使用 start_cooldown。"""
         self.cooldown = max(0, cd)
+        self._cooldown_just_started = False
+
+    def start_cooldown(self, cooldown: Optional[int] = None):
+        """按“完整间隔回合数”启动冷却。
+
+        CD N 表示施放后需要完整间隔 N 个回合。标记会让下一次回合开始
+        只结束“刚施放”阶段而不递减数值，使存储和展示值始终等于声明值。
+        """
+        declared_cooldown = self.base_cooldown if cooldown is None else max(0, cooldown)
+        self.cooldown = declared_cooldown
+        self._cooldown_just_started = True
+
+    def scale_cooldown(self, multiplier: int):
+        """缩放当前声明冷却，并保留刚启动阶段。"""
+        self.cooldown = max(0, self.cooldown * multiplier)
 
     # 减少冷却（如果大于0则减1）；返回是否发生了变化
     def reduce_cooldown(self) -> bool:
+        if self._cooldown_just_started:
+            self._cooldown_just_started = False
+            return True
         if self.cooldown > 0:
             self.cooldown -= 1
             return True
@@ -61,7 +81,7 @@ class Skill:
 
     # 检查是否可用（冷却为0）
     def is_available(self) -> bool:
-        return self.cooldown == 0
+        return self.cooldown == 0 and not self._cooldown_just_started
 
     # 设置技能效果回调
     def set_effect(self, effect: Callable[[Any, Optional[Any]], bool]):
@@ -93,6 +113,6 @@ class Skill:
 
         # 只有施放成功才进入冷却
         if success:
-            self.cooldown = self.base_cooldown
+            self.start_cooldown()
 
         return success

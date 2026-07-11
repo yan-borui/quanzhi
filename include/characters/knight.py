@@ -30,15 +30,15 @@ class Knight(Character):
 
     def _initialize_skills(self):
         """初始化骑士的技能"""
-        fearless_charge = Skill("无畏冲锋", cooldown=3)
+        fearless_charge = Skill("无畏冲锋", cooldown=2)
         fearless_charge.set_effect(self._fearless_charge_effect)
         self.add_or_replace_skill(fearless_charge)
 
-        slash = Skill("斩", cooldown=1)
+        slash = Skill("斩", cooldown=0)
         slash.set_effect(self._slash_effect)
         self.add_or_replace_skill(slash)
 
-        shield = Skill("盾", cooldown=1)
+        shield = Skill("盾", cooldown=0)
         shield.set_effect(self._shield_effect)
         self.add_or_replace_skill(shield)
 

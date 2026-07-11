@@ -199,7 +199,7 @@ class Ninja(Character):
         # 偷袭成功后，忍法地心须再过两回合才可使用（cd=2）
         stealth_skill = self.get_skill("忍法地心")
         if stealth_skill:
-            stealth_skill.set_cooldown(2)
+            stealth_skill.start_cooldown(2)
         return True
 
     def be_searched(self, searcher: Character) -> bool:

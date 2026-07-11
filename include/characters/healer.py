@@ -20,7 +20,7 @@ class Healer(Character):
         self._initialize_skills()
 
     def _initialize_skills(self):
-        big_heal = Skill("大血包", cooldown=1)
+        big_heal = Skill("大血包", cooldown=2)
         big_heal.set_effect(self._big_heal_effect)
         self.add_or_replace_skill(big_heal)
 

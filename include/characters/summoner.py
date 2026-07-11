@@ -14,15 +14,15 @@ class Summoner(Character):
         self._initialize_skills()
 
     def _initialize_skills(self):
-        wolf = Skill("狼", cooldown=1)
+        wolf = Skill("狼", cooldown=0)
         wolf.set_effect(self._wolf_effect)
         self.add_or_replace_skill(wolf)
 
-        bear = Skill("熊", cooldown=1)
+        bear = Skill("熊", cooldown=0)
         bear.set_effect(self._bear_effect)
         self.add_or_replace_skill(bear)
 
-        coordinated_attack = Skill("齐攻", cooldown=1)
+        coordinated_attack = Skill("齐攻", cooldown=0)
         coordinated_attack.set_effect(self._coordinated_attack_effect)
         self.add_or_replace_skill(coordinated_attack)
 

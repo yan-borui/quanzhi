@@ -215,4 +215,11 @@ def test_warlock_explosion_uses_backend_control_removal():
     assert not target.has_control("死亡之门")
     assert target.turn_effects_history[-1]["control_remove"]["死亡之门"] == 1
     assert warlock._death_gate_active is False
-    assert warlock.get_skill("死亡之门").get_cooldown() == 2
+    death_gate = warlock.get_skill("死亡之门")
+    assert not death_gate.is_available()
+    death_gate.reduce_cooldown()
+    assert not death_gate.is_available()
+    death_gate.reduce_cooldown()
+    assert not death_gate.is_available()
+    death_gate.reduce_cooldown()
+    assert death_gate.is_available()
