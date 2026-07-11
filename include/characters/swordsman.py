@@ -35,31 +35,20 @@ class Swordsman(Character):
         self.use_skill_on_target(skill_name, self)
 
     def use_skill_on_target(self, skill_name: str, target: Character):
-        skill = self.get_skill(skill_name)
-        if not skill:
-            emit(f"{self.name} 没有技能: {skill_name}")
-            return
+        def validate():
+            if skill_name == "闪电劈" and target.get_imprint("剑意") < 3:
+                return (
+                    "闪电劈需要目标有3层剑意印记，"
+                    f"当前只有{target.get_imprint('剑意')}层"
+                )
+            if skill_name == "无敌刺":
+                if id(target) in self.invincible_strike_used:
+                    return "无敌刺在同一局中对同一目标只能使用一次！"
+                if not target.has_control("lightning_strike"):
+                    return "无敌刺需要目标有闪电劈控制效果！"
+            return None
 
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        if skill_name == "闪电劈" and target.get_imprint("剑意") < 3:
-            emit(f"闪电劈需要目标有3层剑意印记，当前只有{target.get_imprint('剑意')}层")
-            return
-
-        if skill_name == "无敌刺":
-            target_id = id(target)
-            if target_id in self.invincible_strike_used:
-                emit(f"无敌刺在同一局中对同一目标只能使用一次！")
-                return
-            if not target.has_control("lightning_strike"):
-                emit(f"无敌刺需要目标有闪电劈控制效果！")
-                return
-
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target, validate)
 
     def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
         if skill_name == "闪电劈":

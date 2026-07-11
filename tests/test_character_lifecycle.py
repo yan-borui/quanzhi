@@ -4,6 +4,7 @@ from characters.ninja import Ninja
 from characters.scientist import Scientist
 from characters.target import Target
 from systems.continuous_effect import ContinuousEffect
+from core.damage import DamageEvent
 
 
 def test_death_hook_clears_controls_even_for_direct_death_paths():
@@ -95,3 +96,24 @@ def test_chicken_master_battle_reset_restores_original_health():
 
     assert chicken_master.max_hp == 60
     assert chicken_master.current_hp == 60
+
+
+def test_damage_event_uses_same_resolution_pipeline():
+    target = Target("目标")
+    target.add_modifier("易伤", 20)
+
+    target.receive_damage(DamageEvent(amount=10, skill_name="测试技能"))
+
+    assert target.current_hp == 48
+    assert target.get_modifier("易伤") == 0
+
+
+def test_damage_event_breaks_ninja_stealth():
+    ninja = Ninja("忍者")
+    ninja._in_stealth = True
+    ninja.stealth = 1
+
+    ninja.receive_damage(DamageEvent(amount=1))
+
+    assert not ninja.in_stealth
+    assert ninja.stealth == 0

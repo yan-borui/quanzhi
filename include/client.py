@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import argparse
@@ -12,12 +12,29 @@ from typing import Optional
 
 from PySide6.QtCore import QPoint, QRect, QTimer, Qt, Slot
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QTextEdit, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QWidget,
+)
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 50007
 PORTRAIT_DIR = Path(r"D:\Codex_quanzhi\character_illustrations")
-BUTTON_POSITIONS = [(40, 520), (215, 520), (390, 520), (565, 520), (40, 580), (215, 580), (390, 580), (565, 580)]
+BUTTON_POSITIONS = [
+    (40, 520),
+    (215, 520),
+    (390, 520),
+    (565, 520),
+    (40, 580),
+    (215, 580),
+    (390, 580),
+    (565, 580),
+]
+
 
 class ArrowWidget(QWidget):
     def __init__(self, parent=None, direction: str = "left", callback=None):
@@ -40,9 +57,17 @@ class ArrowWidget(QWidget):
         painter.setBrush(fill)
         painter.setPen(QPen(Qt.black, 2))
         if self.direction == "left":
-            points = [QPoint(1, self.height() // 2), QPoint(self.width() - 1, 1), QPoint(self.width() - 1, self.height() - 1)]
+            points = [
+                QPoint(1, self.height() // 2),
+                QPoint(self.width() - 1, 1),
+                QPoint(self.width() - 1, self.height() - 1),
+            ]
         else:
-            points = [QPoint(self.width() - 1, self.height() // 2), QPoint(1, 1), QPoint(1, self.height() - 1)]
+            points = [
+                QPoint(self.width() - 1, self.height() // 2),
+                QPoint(1, 1),
+                QPoint(1, self.height() - 1),
+            ]
         painter.drawPolygon(points)
 
     def enterEvent(self, event):
@@ -70,6 +95,7 @@ class ArrowWidget(QWidget):
             and self.rect().contains(event.position().toPoint())
         ):
             self.callback()
+
 
 class PortraitCard(QWidget):
     def __init__(self, parent=None, callback=None):
@@ -107,15 +133,27 @@ class PortraitCard(QWidget):
             painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
             return
         if self.pixmap and not self.pixmap.isNull():
-            scaled = self.pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            scaled = self.pixmap.scaled(
+                self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
             x = (self.width() - scaled.width()) // 2
             y = (self.height() - scaled.height()) // 2
             painter.drawPixmap(x, y, scaled)
-        painter.fillRect(0, self.height() - 36, self.width(), 36, QColor(248, 248, 245, 220))
+        painter.fillRect(
+            0, self.height() - 36, self.width(), 36, QColor(248, 248, 245, 220)
+        )
         painter.setPen(Qt.black)
-        painter.drawText(QRect(4, self.height() - 34, self.width() - 8, 16), Qt.AlignLeft | Qt.AlignVCenter, self.player_data["role_name"])
+        painter.drawText(
+            QRect(4, self.height() - 34, self.width() - 8, 16),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            self.player_data["role_name"],
+        )
         hp_text = f"HP {self.player_data['current_hp']}/{self.player_data['max_hp']}"
-        painter.drawText(QRect(4, self.height() - 18, self.width() - 8, 14), Qt.AlignLeft | Qt.AlignVCenter, hp_text)
+        painter.drawText(
+            QRect(4, self.height() - 18, self.width() - 8, 14),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            hp_text,
+        )
         if not self.player_data["alive"]:
             painter.fillRect(self.rect(), QColor(255, 255, 255, 120))
         if self.interactive:
@@ -141,7 +179,12 @@ class PortraitCard(QWidget):
         self.update()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and self.callback and self.player_data is not None and self.interactive:
+        if (
+            event.button() == Qt.LeftButton
+            and self.callback
+            and self.player_data is not None
+            and self.interactive
+        ):
             self.pressed = True
             self.update()
 
@@ -159,13 +202,20 @@ class PortraitCard(QWidget):
         ):
             self.callback(self.player_data["id"])
 
+
 class MainWindow(QWidget):
     def __init__(self, host: str, port: int, name: str, team: str, character: str):
         super().__init__()
         self.host = host
         self.port = port
-        self.profile = {"name": name.strip(), "team": team.strip(), "character": character.strip()}
-        self.pending_fields = [field for field in ("name", "team", "character") if not self.profile[field]]
+        self.profile = {
+            "name": name.strip(),
+            "team": team.strip(),
+            "character": character.strip(),
+        }
+        self.pending_fields = [
+            field for field in ("name", "team", "character") if not self.profile[field]
+        ]
         self.current_prompt: Optional[str] = None
         self.sock: Optional[socket.socket] = None
         self.closed = threading.Event()
@@ -174,7 +224,14 @@ class MainWindow(QWidget):
         self.send_lock = threading.Lock()
         self.connected = False
         self.connecting = False
-        self.server_state = {"game_active": False, "players": [], "can_act": False, "can_view": False, "formal_actions": [], "turn_id": 0}
+        self.server_state = {
+            "game_active": False,
+            "players": [],
+            "can_act": False,
+            "can_view": False,
+            "formal_actions": [],
+            "turn_id": 0,
+        }
         self.ui_mode = "locked"
         self.pending_action: Optional[dict] = None
         self.action_page = 0
@@ -183,7 +240,9 @@ class MainWindow(QWidget):
         self.setGeometry(100, 100, 1120, 640)
         self.setWindowTitle("全职")
         self.setObjectName("mainWindow")
-        self.setStyleSheet("#mainWindow { background-color: rgb(244,244,240); color: black; }")
+        self.setStyleSheet(
+            "#mainWindow { background-color: rgb(244,244,240); color: black; }"
+        )
 
         self.left_arrow = ArrowWidget(self, "left", self._prev_portrait_page)
         self.left_arrow.setGeometry(22, 112, 20, 40)
@@ -229,7 +288,9 @@ class MainWindow(QWidget):
         common = "background:#f8f8f5;color:#111;border:1px solid #b8b8b8;"
         self.left_output.setStyleSheet(common)
         self.right_output.setStyleSheet(common)
-        self.input_line.setStyleSheet("background:#ffffff;color:#111;border:1px solid #b8b8b8;")
+        self.input_line.setStyleSheet(
+            "background:#ffffff;color:#111;border:1px solid #b8b8b8;"
+        )
         button_style = (
             "QPushButton { background:#deded8; color:#111; border:2px solid black; }"
             "QPushButton:hover { background:#bdbdb8; }"
@@ -258,8 +319,16 @@ class MainWindow(QWidget):
     def _prompt_next_field(self):
         if self.pending_fields:
             self.current_prompt = self.pending_fields.pop(0)
-            prompt_map = {"name": "请输入昵称：", "team": "请输入队伍名：", "character": "请输入角色名或角色ID："}
-            placeholder_map = {"name": "输入昵称", "team": "输入队伍名", "character": "输入角色名或ID"}
+            prompt_map = {
+                "name": "请输入昵称：",
+                "team": "请输入队伍名：",
+                "character": "请输入角色名或角色ID：",
+            }
+            placeholder_map = {
+                "name": "输入昵称",
+                "team": "输入队伍名",
+                "character": "输入角色名或ID",
+            }
             self._append_chat(prompt_map[self.current_prompt])
             self.input_line.setEnabled(True)
             self.input_line.setPlaceholderText(placeholder_map[self.current_prompt])
@@ -275,7 +344,9 @@ class MainWindow(QWidget):
         self.input_line.setEnabled(False)
         self.input_line.setPlaceholderText("正在连接服务器...")
         self._append_chat(f"正在连接 {self.host}:{self.port} ...")
-        worker = threading.Thread(target=self._attempt_connection, daemon=True, name="client-connect")
+        worker = threading.Thread(
+            target=self._attempt_connection, daemon=True, name="client-connect"
+        )
         worker.start()
 
     def _attempt_connection(self):
@@ -283,7 +354,16 @@ class MainWindow(QWidget):
         try:
             sock.connect((self.host, self.port))
             with self.send_lock:
-                sock.sendall((self.profile["name"] + "\n" + self.profile["team"] + "\n" + self.profile["character"] + "\n").encode("utf-8"))
+                sock.sendall(
+                    (
+                        self.profile["name"]
+                        + "\n"
+                        + self.profile["team"]
+                        + "\n"
+                        + self.profile["character"]
+                        + "\n"
+                    ).encode("utf-8")
+                )
         except OSError as exc:
             try:
                 sock.close()
@@ -292,6 +372,7 @@ class MainWindow(QWidget):
             self.connect_result_queue.put(("error", str(exc)))
             return
         self.connect_result_queue.put(("success", sock))
+
     def _reader_loop(self, sock: socket.socket):
         with sock.makefile("r", encoding="utf-8") as file_obj:
             while not self.closed.is_set():
@@ -307,7 +388,9 @@ class MainWindow(QWidget):
                     continue
                 self.readqueue.put(payload)
         if not self.closed.is_set():
-            self.readqueue.put({"type": "chat_log", "text": "服务端断开连接，游戏结束……"})
+            self.readqueue.put(
+                {"type": "chat_log", "text": "服务端断开连接，游戏结束……"}
+            )
         self.closed.set()
 
     def _handle_connect_result(self, status: str, payload: object):
@@ -327,7 +410,12 @@ class MainWindow(QWidget):
         self.input_line.setPlaceholderText("输入聊天信息...")
         self.input_line.setFocus()
         self._append_chat("连接成功，已加入房间。")
-        threading.Thread(target=self._reader_loop, args=(self.sock,), daemon=True, name="client-reader").start()
+        threading.Thread(
+            target=self._reader_loop,
+            args=(self.sock,),
+            daemon=True,
+            name="client-reader",
+        ).start()
 
     def _send_json(self, payload: dict):
         if self.sock is None:
@@ -367,7 +455,12 @@ class MainWindow(QWidget):
 
     def _button_defs(self) -> list[tuple[str, str]]:
         if self.ui_mode == "base":
-            return [("查看", "view"), ("出招", "formal_open"), ("行动", "behavior_open"), ("解除", "release_todo")]
+            return [
+                ("查看", "view"),
+                ("出招", "formal_open"),
+                ("行动", "behavior_open"),
+                ("解除", "release_todo"),
+            ]
         if self.ui_mode == "spectator":
             return [("查看", "view")] if self.server_state.get("can_view") else []
         if self.ui_mode == "view_select":
@@ -378,11 +471,20 @@ class MainWindow(QWidget):
             actions = self.server_state.get("formal_actions", [])
             page_size = 7
             start = self.action_page * page_size
-            defs = [(entry["label"], f"formal::{start + idx}") for idx, entry in enumerate(actions[start : start + page_size])]
+            defs = [
+                (entry["label"], f"formal::{start + idx}")
+                for idx, entry in enumerate(actions[start : start + page_size])
+            ]
             defs.append(("返回", "back"))
             return defs
         if self.ui_mode == "action_menu":
-            return [("到你身边", "behavior:approach"), ("离你远点", "behavior:away"), ("寻找", "behavior:search"), ("嘲讽", "behavior:taunt"), ("返回", "back")]
+            return [
+                ("到你身边", "behavior:approach"),
+                ("离你远点", "behavior:away"),
+                ("寻找", "behavior:search"),
+                ("嘲讽", "behavior:taunt"),
+                ("返回", "back"),
+            ]
         if self.ui_mode == "target_select":
             return [("返回", "back")]
         return []
@@ -393,7 +495,7 @@ class MainWindow(QWidget):
             button.setText(item[0])
             button.setProperty("action_value", item[1])
             button.show()
-        for button in self.action_buttons[len(defs):]:
+        for button in self.action_buttons[len(defs) :]:
             button.hide()
             button.setProperty("action_value", None)
         formal_actions = self.server_state.get("formal_actions", [])
@@ -401,11 +503,17 @@ class MainWindow(QWidget):
         page_count = max(1, (len(formal_actions) + 6) // 7) if formal_actions else 1
         self.action_page = max(0, min(self.action_page, page_count - 1))
         self.bottom_prev.setVisible(show_bottom_page and self.action_page > 0)
-        self.bottom_next.setVisible(show_bottom_page and self.action_page < page_count - 1)
+        self.bottom_next.setVisible(
+            show_bottom_page and self.action_page < page_count - 1
+        )
 
     def _reset_ui_mode(self):
         if self.server_state.get("game_active"):
-            self.ui_mode = "base" if self.server_state.get("can_act") else ("spectator" if self.server_state.get("can_view") else "locked")
+            self.ui_mode = (
+                "base"
+                if self.server_state.get("can_act")
+                else ("spectator" if self.server_state.get("can_view") else "locked")
+            )
         else:
             self.ui_mode = "locked"
         self.pending_action = None
@@ -438,12 +546,20 @@ class MainWindow(QWidget):
             self._refresh_buttons()
 
     def _next_action_page(self):
-        if (self.action_page + 1) * 7 < len(self.server_state.get("formal_actions", [])):
+        if (self.action_page + 1) * 7 < len(
+            self.server_state.get("formal_actions", [])
+        ):
             self.action_page += 1
             self._refresh_buttons()
 
     def _submit_intent(self, intent: dict):
-        self._send_json({"type": "submit", "turn_id": self.server_state.get("turn_id"), "intent": intent})
+        self._send_json(
+            {
+                "type": "submit",
+                "turn_id": self.server_state.get("turn_id"),
+                "intent": intent,
+            }
+        )
         self.ui_mode = "locked"
         self.pending_action = None
         self._refresh_buttons()
@@ -477,6 +593,7 @@ class MainWindow(QWidget):
             self._send_json({"type": "chat", "scope": self.chat_scope, "text": message})
         except OSError as exc:
             self._append_chat(f"发送聊天失败：{exc}")
+
     def _on_action_button(self):
         button = self.sender()
         value = button.property("action_value")
@@ -499,11 +616,23 @@ class MainWindow(QWidget):
             if index >= len(actions):
                 return
             action = actions[index]
+            if not action.get("enabled", True):
+                return
             if action.get("requires_target"):
-                self.pending_action = {"category": "formal_action", "action": action["action"]}
+                self.pending_action = {
+                    "category": "formal_action",
+                    "action_id": action.get("id"),
+                    "action": action["action"],
+                }
                 self.ui_mode = "target_select"
             else:
-                self._submit_intent({"category": "formal_action", "action": action["action"]})
+                self._submit_intent(
+                    {
+                        "category": "formal_action",
+                        "action_id": action.get("id"),
+                        "action": action["action"],
+                    }
+                )
                 return
         elif value == "behavior:away":
             self._submit_intent({"category": "behavior", "behavior": "away"})
@@ -581,6 +710,7 @@ class MainWindow(QWidget):
             pass
         super().closeEvent(event)
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Quanzhi 联网客户端")
     parser.add_argument("--host", default=DEFAULT_HOST, help="服务端地址")
@@ -590,12 +720,20 @@ def parse_args():
     parser.add_argument("--character", default="", help="角色名或角色ID")
     return parser.parse_args()
 
+
 def main():
     args = parse_args()
     app = QApplication(sys.argv)
-    window = MainWindow(host=args.host, port=args.port, name=args.name, team=args.team, character=args.character)
+    window = MainWindow(
+        host=args.host,
+        port=args.port,
+        name=args.name,
+        team=args.team,
+        character=args.character,
+    )
     window.show()
     app.exec()
+
 
 if __name__ == "__main__":
     main()

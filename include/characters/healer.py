@@ -6,6 +6,7 @@ from typing import Optional, Set
 from core.character import Character
 from core.status_effects import control_blocks_action
 from core.skill import Skill
+from core.damage import DamageEvent
 
 
 class Healer(Character):
@@ -40,18 +41,7 @@ class Healer(Character):
         self.use_skill_on_target(skill_name, self)
 
     def use_skill_on_target(self, skill_name: str, target: Character):
-        skill = self.get_skill(skill_name)
-        if not skill:
-            emit(f"{self.name} 没有技能: {skill_name}")
-            return
-
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target)
 
     def on_turn_start(self):
         """回合开始时递减减伤状态回合数"""
@@ -63,10 +53,10 @@ class Healer(Character):
             else:
                 emit(f"{self.name} 的减伤状态剩余 {self.damage_reduction_turns} 回合")
 
-    def take_damage(self, damage: int):
+    def intercept_damage(self, event: DamageEvent) -> bool:
+        damage = event.amount
         if damage <= 0:
-            emit(f"{self.name} 未受到有效伤害: {damage}")
-            return
+            return False
 
         # 立盾优先承担伤害（溢出伤害不传递给本体）
         if self.shield_hp > 0:
@@ -80,8 +70,12 @@ class Healer(Character):
                 emit(
                     f"{self.name} 的立盾承受了 {damage} 点伤害，立盾剩余血量: {self.shield_hp}"
                 )
-            return
+            return True
 
+        return False
+
+    def modify_incoming_damage(self, event: DamageEvent) -> int:
+        damage = event.amount
         # 减伤状态：最终伤害降低50%
         if self.damage_reduction_turns > 0:
             original_damage = damage
@@ -89,8 +83,7 @@ class Healer(Character):
             emit(
                 f"{self.name} 的减伤状态生效，伤害从 {original_damage} 降低为 {damage}"
             )
-
-        super().take_damage(damage)
+        return damage
 
     def add_control(self, control_name: str, stacks: int = 1):
         """重写添加控制效果，跟踪立盾期间获得的控制"""

@@ -17,6 +17,7 @@ from characters.warlock import Warlock
 from characters.summoner import Summoner
 from core.event_log import event_sink, silence_events
 from core.player import Player
+from core.skill import Skill
 from main import GameBackend
 
 
@@ -44,6 +45,100 @@ def test_backend_returns_structured_action_context():
     assert isinstance(context, dict)
     assert "actions" in context
     assert isinstance(context["actions"], list)
+    action = context["actions"][0]
+    assert action["id"]
+    assert action["kind"] in {"skill", "behavior", "interaction"}
+    assert isinstance(action["enabled"], bool)
+
+
+def test_disabled_action_has_structured_reason():
+    summoner = Summoner("召唤师")
+    game = GameBackend([summoner, Target("目标")])
+
+    action = next(
+        item
+        for item in game.get_action_context(summoner)["actions"]
+        if item["id"] == "skill:齐攻"
+    )
+
+    assert action["enabled"] is False
+    assert action["disabled_reason"] == "积累不足:狼0/熊0"
+
+
+def test_backend_accepts_stable_action_id():
+    attacker = Target("攻击者")
+    defender = Target("防御者")
+    game = GameBackend([attacker, defender])
+
+    assert game.execute_player_action(attacker, "skill:平A", target=defender)
+    assert defender.current_hp == defender.max_hp - 6
+
+
+def test_backend_owns_behavior_intent_rules():
+    actor = Target("行动者")
+    target = Target("目标")
+    game = GameBackend([actor, target])
+
+    outcome = game.execute_behavior_intent(actor, "approach", target)
+
+    assert outcome.success
+    assert actor.block_id == target.block_id
+
+
+def test_roster_and_board_keep_registration_invariants():
+    actor = Target("行动者")
+    game = GameBackend([actor, Target("目标")])
+    newcomer = Target("新角色")
+
+    game.roster.register(newcomer)
+    game.board.move(newcomer, actor.block_id)
+
+    assert newcomer in game.all_characters
+    assert newcomer in game.alive_characters
+    assert newcomer in game.get_block_members(actor.block_id)
+    assert actor.is_nearby(newcomer)
+
+
+def test_round_pipeline_exposes_stable_phase_order(monkeypatch):
+    game = GameBackend([Target("甲"), Target("乙")])
+    choices = iter(["石头", "剪刀"])
+    monkeypatch.setattr(random, "choice", lambda _: next(choices))
+
+    result = game.start_round()
+
+    assert result["phase_trace"] == [
+        "open",
+        "character_start",
+        "continuous_effects",
+        "death_resolution",
+        "cooldown",
+        "initiative",
+    ]
+
+
+def test_cooldown_multiplier_resolves_action_after_skill_execution():
+    scholar = Scholar("学者")
+    target = Target("目标")
+    game = GameBackend([scholar, target])
+
+    assert game.execute_player_action(scholar, "skill:星星射线", target=target)
+    game.apply_skill_cooldown_multiplier(scholar, "skill:星星射线", 2)
+
+    assert scholar.get_skill("星星射线").get_cooldown() == 2
+
+
+def test_legacy_adapter_preserves_parenthesized_skill_names():
+    actor = Target("行动者")
+    actor.add_or_replace_skill(Skill("测试(强化)", cooldown=0))
+    game = GameBackend([actor, Target("目标")])
+
+    option = next(
+        item
+        for item in game.get_action_context(actor)["actions"]
+        if item["id"] == "skill:测试(强化)"
+    )
+
+    assert option["enabled"] is True
 
 
 def test_control_metadata_separates_blocking_and_non_blocking_controls():

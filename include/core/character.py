@@ -21,9 +21,10 @@ Character 抽象基类
 
 from core.event_log import emit
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, List
+from typing import Callable, Dict, Optional, List
 from core.skill import Skill
 from core.behavior import BehaviorType
+from core.damage import DamageEvent
 from core.status_effects import (
     NON_BLOCKING_CONTROL_NAMES,
     accumulation_bucket,
@@ -133,6 +134,30 @@ class Character(ABC):
         # 默认实现忽略目标，子类可以重写
         self.use_skill(skill_name)
 
+    def execute_skill_action(
+        self,
+        skill_name: str,
+        target: "Character",
+        validator: Optional[Callable[[], Optional[str]]] = None,
+    ) -> bool:
+        """统一技能施放管线；角色只提供额外验证与效果 Implementation。"""
+        skill = self.get_skill(skill_name)
+        if not skill:
+            emit(f"{self.name} 没有技能: {skill_name}")
+            return False
+        if not skill.is_available():
+            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
+            return False
+        if validator is not None:
+            error = validator()
+            if error:
+                emit(error)
+                return False
+        success = skill.execute_with_target(self, target)
+        if success:
+            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        return success
+
     def set_behavior(self, behavior: BehaviorType):
         """设置当前行为"""
         old_behavior = self.current_behavior
@@ -210,12 +235,36 @@ class Character(ABC):
             emit(f"{self.name} 的立盾被打破！")
         return True
 
-    # 受伤并显示（确保边界）
     def take_damage(self, damage: int):
+        """旧调用方兼容 Adapter。"""
+        return self.receive_damage(DamageEvent(amount=damage))
+
+    def intercept_damage(self, event: DamageEvent) -> bool:
+        """角色形态可在此完整接管伤害；True 表示结算结束。"""
+        return False
+
+    def before_damage(self, event: DamageEvent):
+        """在任何护盾或形态拦截前执行的伤害通知 hook。"""
+
+    def after_damage(self, event: DamageEvent, was_alive: bool):
+        """生命伤害完成后的通知 hook。"""
+
+    def modify_incoming_damage(self, event: DamageEvent) -> int:
+        """角色特有减伤/增伤 hook。"""
+        return event.amount
+
+    def receive_damage(self, event: DamageEvent):
+        """统一伤害结算管线。"""
+        damage = event.amount
         if damage <= 0:
             emit(f"{self.name} 未受到有效伤害: {damage}")
             return
 
+        self.before_damage(event)
+        if self.intercept_damage(event):
+            return
+
+        damage = self.modify_incoming_damage(event)
         if self.absorb_damage_with_shield(damage):
             return
 
@@ -242,6 +291,7 @@ class Character(ABC):
         if was_alive and self.is_destroyed():
             self.prepare_for_death()
             self.on_destroy()
+        self.after_damage(event, was_alive)
 
     # 治疗并显示
     def heal(self, amount: int):

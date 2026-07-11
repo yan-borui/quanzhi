@@ -76,14 +76,7 @@ class Knight(Character):
             # 统一入口到无目标版，避免要求选择目标
             self.use_skill(skill_name)
             return
-
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target)
 
     def available_when_controlled_actions(self, battle):
         return ["技能:盾"] if self.can_use_shield() else []

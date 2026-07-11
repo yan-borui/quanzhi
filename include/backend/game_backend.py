@@ -26,6 +26,15 @@ from factory.character_selection import quick_select_default_characters
 from systems.dual_judgment import DualJudgmentSystem
 from systems.continuous_effect import ContinuousEffectSystem
 from systems.state_binding import StateBindingSystem
+from dataclasses import replace
+from backend.actions import (
+    ActionOption,
+    ActionResult,
+    TargetMode,
+    action_option_from_legacy,
+)
+from backend.battle_state import BattleRoster, BoardState
+from backend.rounds import RoundPhase, RoundPipeline
 
 
 class GameBackend:
@@ -35,16 +44,27 @@ class GameBackend:
         if characters is None or len(characters) == 0:
             characters = quick_select_default_characters()
 
-        self.all_characters = characters
-        self.alive_characters = self.all_characters.copy()
+        self.roster = BattleRoster(characters)
+        self.board = BoardState(self.roster)
         self.round_count = 0
 
         self.dual_judgment_system = DualJudgmentSystem()
         self.continuous_effect_system = ContinuousEffectSystem()
         self.state_binding_system = StateBindingSystem()
+        self.round_pipeline = self._build_round_pipeline()
 
         self.initialize_block_system()
         self._inject_systems_to_characters()
+
+    @property
+    def all_characters(self):
+        """旧调用方兼容 Adapter；写入应通过 roster。"""
+        return self.roster.all
+
+    @property
+    def alive_characters(self):
+        """旧调用方兼容 Adapter；刷新应通过 roster。"""
+        return self.roster.alive
 
     def _inject_systems_to_characters(self):
         """将系统级实例注入需要它们的角色"""
@@ -59,9 +79,7 @@ class GameBackend:
                 char.set_continuous_effect_system(self.continuous_effect_system)
 
     def initialize_block_system(self):
-        for char in self.all_characters:
-            char.block_id = id(char)
-            char.nearby_characters = [char]
+        self.board.initialize()
 
     def reset_game(self):
         new_characters = []
@@ -73,8 +91,7 @@ class GameBackend:
             new_char = char_class(char.name)
             new_characters.append(new_char)
 
-        self.all_characters = new_characters
-        self.alive_characters = self.all_characters.copy()
+        self.roster.replace(new_characters)
         self.round_count = 0
 
         self.dual_judgment_system = DualJudgmentSystem()
@@ -127,34 +144,8 @@ class GameBackend:
         return result
 
     def start_round(self):
-        self.round_count += 1
-
-        for char in self.all_characters:
-            char.current_round = self.round_count
-
-        for char in self.all_characters:
-            if hasattr(char, "start_new_turn_log"):
-                char.start_new_turn_log()
-
-        for char in self.all_characters:
-            if hasattr(char, "on_turn_start"):
-                char.on_turn_start()
-
-        self._trigger_continuous_effects()
-        self.update_alive_characters()
-
-        self.reduce_all_cooldowns()
-        real_alive = [
-            c for c in self.alive_characters if not getattr(c, "is_mini_robot", False)
-        ]
-        if len(real_alive) <= 1:
-            rps_result = {
-                "winner": None,
-                "logs": ["=== 石头剪刀布环节 ===", "持续效果结算后游戏已结束。"],
-            }
-        else:
-            rps_result = self.rock_paper_scissors()
-
+        context = self.round_pipeline.run()
+        rps_result = context["rps_result"]
         return {
             "round_count": self.round_count,
             "battle_status": self.get_battle_status(),
@@ -165,7 +156,55 @@ class GameBackend:
                 if rps_result["winner"] is None
                 else f"本回合由 {rps_result['winner'].name} 先手！"
             ),
+            "phase_trace": context["phase_trace"],
         }
+
+    def _build_round_pipeline(self) -> RoundPipeline:
+        return RoundPipeline(
+            [
+                (RoundPhase.OPEN, self._phase_open_round),
+                (RoundPhase.CHARACTER_START, self._phase_character_start),
+                (RoundPhase.CONTINUOUS_EFFECTS, self._phase_continuous_effects),
+                (RoundPhase.DEATH_RESOLUTION, self._phase_death_resolution),
+                (RoundPhase.COOLDOWN, self._phase_cooldown),
+                (RoundPhase.INITIATIVE, self._phase_initiative),
+            ]
+        )
+
+    def _phase_open_round(self, context: dict):
+        self.round_count += 1
+        for char in self.all_characters:
+            char.current_round = self.round_count
+        for char in self.all_characters:
+            if hasattr(char, "start_new_turn_log"):
+                char.start_new_turn_log()
+
+    def _phase_character_start(self, context: dict):
+        for char in self.all_characters:
+            if hasattr(char, "on_turn_start"):
+                char.on_turn_start()
+
+    def _phase_continuous_effects(self, context: dict):
+        self._trigger_continuous_effects()
+
+    def _phase_death_resolution(self, context: dict):
+        self.update_alive_characters()
+
+    def _phase_cooldown(self, context: dict):
+        self.reduce_all_cooldowns()
+
+    def _phase_initiative(self, context: dict):
+        real_alive = [
+            c for c in self.alive_characters if not getattr(c, "is_mini_robot", False)
+        ]
+        if len(real_alive) <= 1:
+            rps_result = {
+                "winner": None,
+                "logs": ["=== 石头剪刀布环节 ===", "持续效果结算后游戏已结束。"],
+            }
+        else:
+            rps_result = self.rock_paper_scissors()
+        context["rps_result"] = rps_result
 
     def finish_round(self, winner: Optional[Character]):
         for char in self.all_characters:
@@ -197,21 +236,8 @@ class GameBackend:
         }
 
     def move_character_to_block(self, character: Character, target_block_id: int):
-        old_block_id = character.block_id
-        if old_block_id == target_block_id:
+        if not self.board.move(character, target_block_id):
             return {"success": False, "message": f"{character.name} 已经在目标位置"}
-
-        old_block_chars = [
-            c
-            for c in self.all_characters
-            if c.block_id == old_block_id and c != character
-        ]
-        for other_char in old_block_chars:
-            if character in other_char.nearby_characters:
-                other_char.nearby_characters.remove(character)
-
-        character.block_id = target_block_id
-        self.rebuild_all_nearby_lists()
 
         self.continuous_effect_system.check_and_remove_on_event(character, "movement")
 
@@ -222,11 +248,9 @@ class GameBackend:
 
     def move_character_to_random_new_block(self, character: Character):
         """将角色移动到一个随机且当前未占用的新地块。"""
-        occupied_blocks = {char.block_id for char in self.all_characters}
-        occupied_blocks.update(self.continuous_effect_system.block_effects)
-        new_block_id = random.randint(1, 2**31 - 1)
-        while new_block_id in occupied_blocks:
-            new_block_id = random.randint(1, 2**31 - 1)
+        new_block_id = self.board.random_empty_block(
+            self.continuous_effect_system.block_effects
+        )
         return self.move_character_to_block(character, new_block_id)
 
     def _trigger_continuous_effects(self):
@@ -240,24 +264,16 @@ class GameBackend:
             self.continuous_effect_system.trigger_block_effects(block_id, members)
 
     def rebuild_all_nearby_lists(self):
-        blocks = {}
-        for char in self.all_characters:
-            blocks.setdefault(char.block_id, []).append(char)
-        for char in self.all_characters:
-            char.nearby_characters = blocks[char.block_id].copy()
+        self.board.rebuild_nearby_cache()
 
     def count_characters_in_block(self, block_id: int) -> int:
-        count = 0
-        for char in self.all_characters:
-            if char.block_id == block_id:
-                count += 1
-        return count
+        return self.board.count(block_id)
 
     def is_nearby(self, char1: Character, char2: Character) -> bool:
         return char1.block_id == char2.block_id
 
     def get_block_members(self, block_id: int) -> List[Character]:
-        return [char for char in self.all_characters if char.block_id == block_id]
+        return self.board.members(block_id)
 
     def get_random_alive_character(self):
         return random.choice(self.alive_characters) if self.alive_characters else None
@@ -267,10 +283,8 @@ class GameBackend:
         return random.choice(possible_targets) if possible_targets else None
 
     def update_alive_characters(self):
-        prev_alive = set(self.alive_characters)
-        self.alive_characters = [
-            char for char in self.all_characters if char.is_alive()
-        ]
+        prev_alive = self.roster.was_alive()
+        self.roster.refresh_alive()
 
         for char in self.all_characters:
             if isinstance(char, Knight):
@@ -285,8 +299,7 @@ class GameBackend:
         for char in self.all_characters:
             if isinstance(char, ChickenMaster) and char.pending_revive:
                 if char.try_revive():
-                    if char not in self.alive_characters:
-                        self.alive_characters.append(char)
+                    self.roster.register(char)
 
         # 若有角色携带死亡之门死亡，检查是否需要重置术士冷却
         self._check_death_gate_cleared()
@@ -447,38 +460,10 @@ class GameBackend:
         return actions
 
     def get_action_context(self, character):
-        actions = self.get_available_actions(character)
-        action_entries = []
-        for i, action in enumerate(actions, 1):
-            is_unavailable = any(
-                marker in action
-                for marker in [
-                    "(CD:",
-                    "(无次数)",
-                    "(条件不足)",
-                    "(历史不足)",
-                    "(上上回合有控制)",
-                    "(积累不足:",
-                    "(无有效目标)",
-                    "(不可用)",
-                    "(无铁索目标)",
-                    "(需隐身)",
-                    "(电池不足:",
-                    "(无机器人)",
-                    "(机器人模式不可用)",
-                    "(激活中)",
-                    "(无死亡之门)",
-                    "(无飞镰目标)",
-                    "(无飞镰斩)",
-                ]
-            )
-            action_entries.append(
-                {
-                    "index": i,
-                    "action": action,
-                    "is_unavailable": is_unavailable,
-                }
-            )
+        action_options = self.get_action_options(character)
+        action_entries = [
+            option.to_dict(index) for index, option in enumerate(action_options, 1)
+        ]
 
         return {
             "character": character,
@@ -501,15 +486,47 @@ class GameBackend:
             "actions": action_entries,
         }
 
+    def get_action_options(self, character) -> List[ActionOption]:
+        """返回结构化动作；旧字符串只在兼容 Adapter 中解析。"""
+        options = []
+        for action in self.get_available_actions(character):
+            option = action_option_from_legacy(action)
+            if option.enabled:
+                option = self._with_targeting(character, option)
+            options.append(option)
+        return options
+
+    def _with_targeting(self, character, option: ActionOption) -> ActionOption:
+        target_info = self.get_action_targets(character, option.legacy_action or "")
+        error = target_info.get("error")
+        if error:
+            return replace(option, enabled=False, disabled_reason=error)
+        if target_info.get("multi_select"):
+            mode = TargetMode.MULTI
+        elif not target_info.get("requires_target", False):
+            mode = (
+                TargetMode.AUTOMATIC if target_info.get("targets") else TargetMode.NONE
+            )
+        else:
+            mode = TargetMode.SINGLE
+        return replace(option, target_mode=mode)
+
+    def resolve_action(
+        self, character, submitted_action: str
+    ) -> Optional[ActionOption]:
+        """按稳定 ID 或旧展示字符串解析当前动作。"""
+        for option in self.get_action_options(character):
+            if submitted_action in {option.action_id, option.legacy_action}:
+                return option
+        return None
+
     def _is_action_executable(self, character, action: str) -> bool:
         """检查动作是否出现在当前可执行动作列表中。"""
         if not isinstance(action, str) or not action:
             return False
 
-        for entry in self.get_action_context(character)["actions"]:
-            if entry["action"] == action and not entry["is_unavailable"]:
-                return True
-        return False
+        option = self.resolve_action(character, action)
+        return option is not None and option.enabled
 
     def get_action_targets(self, character, action):
         if action.startswith("技能:"):
@@ -700,8 +717,10 @@ class GameBackend:
         target: Optional[Character] = None,
         selected_targets: Optional[List[Character]] = None,
     ) -> bool:
-        if not self._is_action_executable(character, action):
+        option = self.resolve_action(character, action)
+        if option is None or not option.enabled:
             return False
+        action = option.legacy_action or action
 
         if action.startswith("技能:"):
             skill_name = action.replace("技能:", "").strip()
@@ -732,9 +751,8 @@ class GameBackend:
                         if robot not in self.all_characters:
                             robot.block_id = character.block_id
                             robot.nearby_characters = [robot]
-                            self.all_characters.append(robot)
-                            if robot.is_alive():
-                                self.alive_characters.append(robot)
+                            self.roster.register(robot)
+                            self.board.rebuild_nearby_cache()
                             emit(f"小机器人 [{robot.name}] 加入战场！")
                     return True
                 if skill_name == "忍法地心" and isinstance(character, Ninja):
@@ -812,6 +830,76 @@ class GameBackend:
             return False
 
         return False
+
+    def execute_behavior_intent(
+        self, character: Character, behavior: str, target: Optional[Character] = None
+    ) -> ActionResult:
+        """执行前端无关的行为意图。"""
+        if behavior == "taunt":
+            return ActionResult(True, f"{character.name} 嘲讽了一番，什么也没有发生。")
+
+        if behavior == "away":
+            if self.count_characters_in_block(character.block_id) <= 1:
+                return ActionResult(
+                    True, f"{character.name} 试图远离所有人，但本来就独处。"
+                )
+            success = self.execute_player_action(character, "behavior:离你远点")
+            message = (
+                f"{character.name} 远离了所有人。"
+                if success
+                else f"{character.name} 试图远离所有人，但没有发生变化。"
+            )
+            return ActionResult(success, message)
+
+        if behavior == "approach":
+            if target is None or not target.is_alive() or target is character:
+                return ActionResult(
+                    True, f"{character.name} 试图靠近一个无效目标，什么也没有发生。"
+                )
+            success = self.execute_player_action(
+                character, "behavior:到你身边", target=target
+            )
+            message = (
+                f"{character.name} 来到了 {target.name} 身边。"
+                if success
+                else f"{character.name} 试图靠近 {target.name}，但没有发生变化。"
+            )
+            return ActionResult(success, message)
+
+        if behavior == "search":
+            if (
+                target is None
+                or not target.is_alive()
+                or not isinstance(target, Ninja)
+                or not target.in_stealth
+            ):
+                return ActionResult(
+                    True, f"{character.name} 试图搜索，但没有有效的隐身目标。"
+                )
+            found = self._execute_silently(target.be_searched, character)
+            message = (
+                f"{character.name} 成功找出了隐身中的 {target.name}。"
+                if found
+                else f"{character.name} 试图寻找 {target.name}，但没有成功。"
+            )
+            return ActionResult(True, message)
+
+        return ActionResult(False, f"{character.name} 提交了未知行动。", retry=True)
+
+    def apply_skill_cooldown_multiplier(
+        self, character: Character, action: str, multiplier: int
+    ):
+        """应用对局级技能冷却倍率。"""
+        option = self.resolve_action(character, action)
+        if option is None or option.kind.value != "skill":
+            return
+        skill = character.get_skill(option.name)
+        if skill is None:
+            return
+        if multiplier == 0:
+            skill.set_cooldown(0)
+        elif multiplier != 1 and skill.get_cooldown() > 0:
+            skill.scale_cooldown(multiplier)
 
     @staticmethod
     def _execute_silently(func, *args, **kwargs):

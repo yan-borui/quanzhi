@@ -21,6 +21,7 @@ from typing import Optional
 
 from core.behavior import BehaviorType
 from core.character import Character
+from core.damage import DamageEvent
 from core.status_effects import get_control_definition
 from core.skill import Skill
 from systems.continuous_effect import ContinuousEffectSystem
@@ -80,31 +81,18 @@ class Ninja(Character):
         self.use_skill_on_target(skill_name, self)
 
     def use_skill_on_target(self, skill_name: str, target: Character):
-        skill = self.get_skill(skill_name)
-        if not skill:
-            emit(f"{self.name} 没有技能: {skill_name}")
-            return
+        def validate():
+            if skill_name == "摔":
+                bound_target = self.state_binding_system.get_bound_target(
+                    self, "铁索覆身"
+                )
+                if bound_target is not target or not target.has_control("铁索覆身"):
+                    return "摔需要目标被铁索覆身锁定！"
+            if skill_name == "偷袭" and not self._in_stealth:
+                return "偷袭需要先使用忍法地心进入隐身状态！"
+            return None
 
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        # 摔的条件检查：目标必须有铁索覆身控制
-        if skill_name == "摔":
-            bound_target = self.state_binding_system.get_bound_target(self, "铁索覆身")
-            if bound_target is not target or not target.has_control("铁索覆身"):
-                emit(f"摔需要目标被铁索覆身锁定！")
-                return
-
-        # 偷袭的条件检查：必须处于忍法地心隐身
-        if skill_name == "偷袭":
-            if not self._in_stealth:
-                emit(f"偷袭需要先使用忍法地心进入隐身状态！")
-                return
-
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target, validate)
 
     def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
         if skill_name == "摔":
@@ -271,13 +259,12 @@ class Ninja(Character):
                 self.state_binding_system.unbind_state(self, "铁索覆身")
                 emit(f"{target.get_name()} 挣脱了铁索覆身！")
 
-    def take_damage(self, damage: int):
+    def before_damage(self, event: DamageEvent):
         """受伤时脱离隐身"""
-        if self._in_stealth and damage > 0:
+        if self._in_stealth and event.amount > 0:
             self._in_stealth = False
             self.stealth = 0
             emit(f"{self.name} 受到伤害，脱离隐身状态！")
-        super().take_damage(damage)
 
     def on_behavior_change(
         self, old_behavior: Optional[BehaviorType], new_behavior: Optional[BehaviorType]

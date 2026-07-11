@@ -44,9 +44,7 @@ class Summon(Character):
         if ok:
             emit(f"{self.name} 对 {target.get_name()} 施放了技能 {skill_name}")
 
-    def take_damage(self, damage: int):
-        was_alive = self.is_alive()
-        super().take_damage(damage)
+    def after_damage(self, event, was_alive: bool):
         if was_alive and self.is_destroyed():
             emit(f"召唤物 {self.name} 被摧毁！")
 

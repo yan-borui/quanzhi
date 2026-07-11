@@ -30,27 +30,19 @@ class Summoner(Character):
         self.use_skill_on_target(skill_name, self)
 
     def use_skill_on_target(self, skill_name: str, target: Character):
-        skill = self.get_skill(skill_name)
-        if not skill:
-            emit(f"{self.name} 没有技能: {skill_name}")
-            return
-
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        if skill_name == "齐攻":
+        def validate():
+            if skill_name != "齐攻":
+                return None
             wolf_accumulation = self.get_resource("狼")
             bear_accumulation = self.get_resource("熊")
             if wolf_accumulation < 6 and bear_accumulation < 6:
-                emit(
-                    f"齐攻需要至少6只狼或6只熊的积累！当前狼:{wolf_accumulation}, 熊:{bear_accumulation}"
+                return (
+                    "齐攻需要至少6只狼或6只熊的积累！"
+                    f"当前狼:{wolf_accumulation}, 熊:{bear_accumulation}"
                 )
-                return
+            return None
 
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target, validate)
 
     def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
         if skill_name != "齐攻":

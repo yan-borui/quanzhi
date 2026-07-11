@@ -56,30 +56,16 @@ class DiscMaster(Character):
         self.use_skill_on_target(skill_name, self)
 
     def use_skill_on_target(self, skill_name: str, target: Character):
-        skill = self.get_skill(skill_name)
-        if not skill:
-            emit(f"{self.name} 没有技能: {skill_name}")
-            return
+        def validate():
+            requirements = {"亮瞎你": 3, "光盘飞刀": 5}
+            required = requirements.get(skill_name, 0)
+            if self.disc_count < required:
+                return (
+                    f"{skill_name}需要至少{required}张光盘！当前光盘: {self.disc_count}"
+                )
+            return None
 
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        # 亮瞎你需要至少3张光盘
-        if skill_name == "亮瞎你":
-            if self.disc_count < 3:
-                emit(f"亮瞎你需要至少3张光盘！当前光盘: {self.disc_count}")
-                return
-
-        # 光盘飞刀需要至少5张光盘
-        if skill_name == "光盘飞刀":
-            if self.disc_count < 5:
-                emit(f"光盘飞刀需要至少5张光盘！当前光盘: {self.disc_count}")
-                return
-
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target, validate)
 
     def use_disc_scatter_with_player_count(self, player_count: int) -> bool:
         """

@@ -25,6 +25,7 @@ from typing import Optional, List
 from core.behavior import BehaviorType
 from core.character import Character
 from core.skill import Skill
+from core.damage import DamageEvent
 
 
 class MiniRobot(Character):
@@ -106,42 +107,16 @@ class Scientist(Character):
         self.use_skill_on_target(skill_name, self)
 
     def use_skill_on_target(self, skill_name: str, target: Character):
-        skill = self.get_skill(skill_name)
-        if not skill:
-            emit(f"{self.name} 没有技能: {skill_name}")
-            return
+        def validate():
+            if self._in_robot_mode and skill_name not in ("撸", "机器人自爆"):
+                return f"{self.name} 处于机器人模式，只能使用撸或机器人自爆！"
+            if skill_name == "制造机器人" and self.battery_count < 4:
+                return f"制造机器人需要至少4个电池！当前电池: {self.battery_count}"
+            if skill_name in ("撸", "机器人自爆") and self.robot_count < 1:
+                return f"{skill_name}需要至少1个机器人！当前机器人: {self.robot_count}"
+            return None
 
-        if not skill.is_available():
-            emit(f"技能 {skill_name} 在冷却中 (CD:{skill.get_cooldown()})")
-            return
-
-        # 机器人模式下只能使用撸和机器人自爆
-        if self._in_robot_mode:
-            if skill_name not in ("撸", "机器人自爆"):
-                emit(f"{self.name} 处于机器人模式，只能使用撸或机器人自爆！")
-                return
-
-        # 制造机器人需要至少4个电池
-        if skill_name == "制造机器人":
-            if self.battery_count < 4:
-                emit(f"制造机器人需要至少4个电池！当前电池: {self.battery_count}")
-                return
-
-        # 撸需要至少1个机器人
-        if skill_name == "撸":
-            if self.robot_count < 1:
-                emit(f"撸需要至少1个机器人！当前机器人: {self.robot_count}")
-                return
-
-        # 机器人自爆需要至少1个机器人
-        if skill_name == "机器人自爆":
-            if self.robot_count < 1:
-                emit(f"机器人自爆需要至少1个机器人！当前机器人: {self.robot_count}")
-                return
-
-        success = skill.execute_with_target(self, target)
-        if success:
-            emit(f"{self.name} 对 {target.get_name()} 使用了 {skill_name}")
+        self.execute_skill_action(skill_name, target, validate)
 
     def describe_skill_action(self, skill_name: str, skill: Skill, battle) -> str:
         if self._in_robot_mode and skill_name not in ("撸", "机器人自爆"):
@@ -271,13 +246,13 @@ class Scientist(Character):
             return True
         return super().is_alive()
 
-    def take_damage(self, damage: int):
+    def intercept_damage(self, event: DamageEvent) -> bool:
         """
         科学家在机器人模式下受伤时，损失一个命名机器人而非生命值。
         """
         if self._in_robot_mode and self.robot_count > 0:
-            if self.absorb_damage_with_shield(damage):
-                return
+            if self.absorb_damage_with_shield(event.amount):
+                return True
 
             # 摧毁第一个存活的命名机器人
             for robot in self._named_robots:
@@ -293,8 +268,8 @@ class Scientist(Character):
                 self._in_robot_mode = False
                 self.current_hp = 0
                 super().on_destroy()
-        else:
-            super().take_damage(damage)
+            return True
+        return False
 
     def on_behavior_change(
         self,

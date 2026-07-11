@@ -12,23 +12,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from backend.game_backend import GameBackend
-from characters.ninja import Ninja
 from config.game_config import get_game_config
 import factory.character_init  # noqa: F401
 from factory.character_factory import get_character_factory, get_character_registry
 
 DEFAULT_HOST = ""
 DEFAULT_PORT = 50007
-NO_TARGET_SKILLS = {
-    "技能:盾",
-    "技能:一锅油",
-    "技能:回旋斩",
-    "技能:爆炸",
-    "技能:忍法地心",
-    "技能:空投",
-    "技能:电池",
-    "技能:制造机器人",
-}
 
 
 @dataclass
@@ -692,17 +681,26 @@ class NetworkGameServer:
     def _process_formal_action(
         self, actor_session: PlayerSession, actor, intent: dict
     ) -> str:
-        raw_action = str(intent.get("action", "")).strip()
+        raw_action = str(intent.get("action_id") or intent.get("action", "")).strip()
         if not raw_action:
             self.broadcast_public_log(
                 f"{actor.name} 没有提交有效招式，本回合重新猜拳。"
             )
             return "illegal_retry"
-        base_action = self._strip_action_suffix(raw_action)
-        target = self._get_character_by_session_id(intent.get("target_id"))
         if self.backend is None:
             return "illegal_retry"
-        ui_meta = self._build_action_ui_meta(actor, raw_action)
+        option = self.backend.resolve_action(actor, raw_action)
+        if option is None or not option.enabled:
+            self.broadcast_public_log(
+                f"{actor.name} 提交了不可用招式，本回合重新猜拳。"
+            )
+            return "illegal_retry"
+        base_action = option.legacy_action or raw_action
+        target = self._get_character_by_session_id(intent.get("target_id"))
+        ui_meta = {
+            "requires_target": option.target_mode.value == "single",
+            "auto_multi": option.target_mode.value in {"multi", "automatic"},
+        }
         if ui_meta["auto_multi"]:
             target_info = self.backend.get_action_targets(actor, base_action)
             selected_targets = (
@@ -717,7 +715,7 @@ class NetworkGameServer:
                 actor, base_action, selected_targets=selected_targets
             )
             if success:
-                self._apply_skill_cooldown_modifier(actor, base_action)
+                self._apply_skill_cooldown_modifier(actor, option.action_id)
                 names = "、".join(target_obj.name for target_obj in selected_targets)
                 self.broadcast_public_log(
                     f"{actor.name} 使用了 {base_action}，目标：{names}"
@@ -737,7 +735,7 @@ class NetworkGameServer:
                 actor, base_action, target=target
             )
             if success:
-                self._apply_skill_cooldown_modifier(actor, base_action)
+                self._apply_skill_cooldown_modifier(actor, option.action_id)
                 self.broadcast_public_log(
                     f"{actor.name} 对 {target.name} 使用了 {base_action}"
                 )
@@ -748,7 +746,7 @@ class NetworkGameServer:
             return "illegal_retry"
         success = self.backend.execute_player_action(actor, base_action)
         if success:
-            self._apply_skill_cooldown_modifier(actor, base_action)
+            self._apply_skill_cooldown_modifier(actor, option.action_id)
             self.broadcast_public_log(f"{actor.name} 使用了 {base_action}")
             return "advance"
         self.broadcast_public_log(
@@ -763,68 +761,9 @@ class NetworkGameServer:
         target = self._get_character_by_session_id(intent.get("target_id"))
         if self.backend is None:
             return "illegal_retry"
-        if behavior == "taunt":
-            self.broadcast_public_log(f"{actor.name} 嘲讽了一番，什么也没有发生。")
-            return "advance"
-        if behavior == "away":
-            if self.backend.count_characters_in_block(actor.block_id) <= 1:
-                self.broadcast_public_log(
-                    f"{actor.name} 试图远离所有人，但本来就独处。"
-                )
-                return "advance"
-            success = self.backend.execute_player_action(actor, "行为:离你远点")
-            if success:
-                self.broadcast_public_log(f"{actor.name} 远离了所有人。")
-            else:
-                self.broadcast_public_log(
-                    f"{actor.name} 试图远离所有人，但没有发生变化。"
-                )
-            return "advance"
-        if behavior == "approach":
-            if target is None or not target.is_alive():
-                self.broadcast_public_log(
-                    f"{actor.name} 试图靠近一个无效目标，什么也没有发生。"
-                )
-                return "advance"
-            if target is actor:
-                self.broadcast_public_log(
-                    f"{actor.name} 试图靠近自己，什么也没有发生。"
-                )
-                return "advance"
-            success = self.backend.execute_player_action(
-                actor, "行为:到你身边", target=target
-            )
-            if success:
-                self.broadcast_public_log(f"{actor.name} 来到了 {target.name} 身边。")
-            else:
-                self.broadcast_public_log(
-                    f"{actor.name} 试图靠近 {target.name}，但没有发生变化。"
-                )
-            return "advance"
-        if behavior == "search":
-            if target is None or not target.is_alive():
-                self.broadcast_public_log(
-                    f"{actor.name} 试图寻找一个无效目标，什么也没有发生。"
-                )
-                return "advance"
-            if not isinstance(target, Ninja) or not target.in_stealth:
-                self.broadcast_public_log(
-                    f"{actor.name} 试图寻找 {target.name}，但对方并不处于隐身状态。"
-                )
-                return "advance"
-            with redirect_stdout(io.StringIO()):
-                found = target.be_searched(actor)
-            if found:
-                self.broadcast_public_log(
-                    f"{actor.name} 成功找出了隐身中的 {target.name}。"
-                )
-            else:
-                self.broadcast_public_log(
-                    f"{actor.name} 试图寻找 {target.name}，但没有成功。"
-                )
-            return "advance"
-        self.broadcast_public_log(f"{actor.name} 提交了未知行动，什么也没有发生。")
-        return "advance"
+        result = self.backend.execute_behavior_intent(actor, behavior, target)
+        self.broadcast_public_log(result.message)
+        return "illegal_retry" if result.retry else "advance"
 
     def _build_state_payload(self, session: PlayerSession) -> dict:
         with self.game_lock:
@@ -861,15 +800,20 @@ class NetworkGameServer:
                     base_action = self._strip_action_suffix(action)
                     if base_action in ("行为:到你身边", "行为:离你远点"):
                         continue
-                    meta = self._build_action_ui_meta(session.character, action)
                     formal_actions.append(
                         {
+                            "id": entry["id"],
                             "action": action,
-                            "label": action.replace("技能:", "", 1).replace(
-                                "行为:", "", 1
+                            "label": (
+                                entry["label"]
+                                if entry["enabled"]
+                                else f"{entry['label']}({entry['disabled_reason']})"
                             ),
-                            "requires_target": meta["requires_target"],
-                            "auto_multi": meta["auto_multi"],
+                            "enabled": entry["enabled"],
+                            "disabled_reason": entry["disabled_reason"],
+                            "target_mode": entry["target_mode"],
+                            "requires_target": entry["requires_target"],
+                            "auto_multi": entry["auto_multi"],
                         }
                     )
             return {
@@ -926,18 +870,10 @@ class NetworkGameServer:
             self.send_private_log(session, f"所在位置块：{target.block_id}")
 
     def _apply_skill_cooldown_modifier(self, actor, action: str):
-        if not action.startswith("技能:"):
-            return
-        skill_name = action.replace("技能:", "", 1)
-        skill = actor.get_skill(skill_name) if hasattr(actor, "get_skill") else None
-        if skill is None:
-            return
-        current_cd = skill.get_cooldown()
-        if self.match_modifiers.cd_multiplier == 0:
-            skill.set_cooldown(0)
-            return
-        if current_cd > 0 and self.match_modifiers.cd_multiplier != 1:
-            skill.scale_cooldown(self.match_modifiers.cd_multiplier)
+        if self.backend is not None:
+            self.backend.apply_skill_cooldown_multiplier(
+                actor, action, self.match_modifiers.cd_multiplier
+            )
 
     @staticmethod
     def _strip_action_suffix(action: str) -> str:
@@ -952,21 +888,6 @@ class NetworkGameServer:
             return action
         content = action[len(prefix) :]
         return prefix + content.split("(", 1)[0].strip()
-
-    def _build_action_ui_meta(self, character, action: str) -> dict:
-        base_action = self._strip_action_suffix(action)
-        if base_action.startswith("行为:"):
-            return {"requires_target": False, "auto_multi": False}
-        if base_action in NO_TARGET_SKILLS:
-            return {"requires_target": False, "auto_multi": False}
-        if self.backend is None:
-            return {"requires_target": True, "auto_multi": False}
-        target_info = self.backend.get_action_targets(character, base_action)
-        if target_info.get("multi_select"):
-            return {"requires_target": False, "auto_multi": True}
-        if not target_info.get("requires_target", False):
-            return {"requires_target": False, "auto_multi": False}
-        return {"requires_target": True, "auto_multi": False}
 
     def _get_session_by_character_id(self, character_id) -> Optional[PlayerSession]:
         if character_id is None:
