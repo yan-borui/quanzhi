@@ -49,6 +49,7 @@ class Character(ABC):
         self.control = control if control is not None else {}
         self.stealth = stealth
         self.block_id = id(self)
+        self._block_move_handler: Optional[Callable[["Character", int], bool]] = None
 
         self.skills: Dict[str, Skill] = {}
         self.imprints: Dict[str, int] = {}
@@ -89,8 +90,26 @@ class Character(ABC):
         """获取角色所在的块ID"""
         return self.block_id
 
-    def set_block_id(self, block_id: int):
-        """设置角色所在的块ID"""
+    def set_block_id(self, block_id: int) -> None:
+        """设置角色所在的块ID。
+
+        角色进入对局后，由地块状态的写入 Module 同步派生缓存；
+        未进入对局的独立角色保留原有直接设置行为。
+        """
+        if self._block_move_handler is None:
+            self.block_id = block_id
+            return
+        self._block_move_handler(self, block_id)
+
+    def _bind_block_move_handler(
+        self,
+        handler: Optional[Callable[["Character", int], bool]],
+    ) -> None:
+        """绑定对局内的地块写入函数。"""
+        self._block_move_handler = handler
+
+    def _set_block_id_from_battle(self, block_id: int) -> None:
+        """由地块状态 Module 执行的底层写入。"""
         self.block_id = block_id
 
     def is_controlled(self) -> bool:

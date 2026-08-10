@@ -91,7 +91,7 @@ class GameBackend:
             new_char = char_class(char.name)
             new_characters.append(new_char)
 
-        self.roster.replace(new_characters)
+        self.board.replace(new_characters)
         self.round_count = 0
 
         self.dual_judgment_system = DualJudgmentSystem()
@@ -99,7 +99,6 @@ class GameBackend:
         self.state_binding_system = StateBindingSystem()
 
         self._inject_systems_to_characters()
-        self.initialize_block_system()
         return {"reset": True}
 
     def is_game_over(self):
@@ -749,10 +748,7 @@ class GameBackend:
                     # 将新建的小机器人加入游戏
                     for robot in character.get_named_robots():
                         if robot not in self.all_characters:
-                            robot.block_id = character.block_id
-                            robot.nearby_characters = [robot]
-                            self.roster.register(robot)
-                            self.board.rebuild_nearby_cache()
+                            self.board.register(robot, character.block_id)
                             emit(f"小机器人 [{robot.name}] 加入战场！")
                     return True
                 if skill_name == "忍法地心" and isinstance(character, Ninja):

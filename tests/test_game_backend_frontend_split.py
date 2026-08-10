@@ -12,6 +12,8 @@ sys.path.insert(
 
 from characters.scholar import Scholar
 from characters.oil_master import OilMaster
+from characters.ranger import Ranger
+from characters.scientist import Scientist
 from characters.target import Target
 from characters.warlock import Warlock
 from characters.summoner import Summoner
@@ -19,6 +21,10 @@ from core.event_log import event_sink, silence_events
 from core.player import Player
 from core.skill import Skill
 from main import GameBackend
+from systems.continuous_effect import (
+    ContinuousEffect,
+    RemovalCondition,
+)
 
 
 def test_backend_execute_action_has_no_stdout(capsys):
@@ -90,13 +96,96 @@ def test_roster_and_board_keep_registration_invariants():
     game = GameBackend([actor, Target("目标")])
     newcomer = Target("新角色")
 
-    game.roster.register(newcomer)
-    game.board.move(newcomer, actor.block_id)
+    game.board.register(newcomer, actor.block_id)
 
     assert newcomer in game.all_characters
     assert newcomer in game.alive_characters
     assert newcomer in game.get_block_members(actor.block_id)
     assert actor.is_nearby(newcomer)
+    assert newcomer in actor.get_nearby_characters()
+    assert actor in newcomer.get_nearby_characters()
+
+
+def test_legacy_roster_registration_refreshes_board_cache():
+    actor = Target("行动者")
+    game = GameBackend([actor, Target("目标")])
+    newcomer = Target("新角色")
+    newcomer.set_block_id(actor.block_id)
+
+    game.roster.register(newcomer)
+
+    assert newcomer in actor.get_nearby_characters()
+    assert actor in newcomer.get_nearby_characters()
+
+
+def test_forced_move_syncs_board_without_removing_movement_effect():
+    ranger = Ranger("游侠")
+    target = Target("目标")
+    game = GameBackend([ranger, target])
+    effect = ContinuousEffect(
+        "移动后消失",
+        -1,
+        lambda _: None,
+        removal_condition=RemovalCondition.ON_MOVEMENT,
+    )
+    game.continuous_effect_system.add_effect(target, effect)
+
+    assert game.execute_player_action(ranger, "skill:纱袋", target=target)
+
+    assert target.block_id == ranger.block_id
+    assert target in ranger.get_nearby_characters()
+    assert ranger in target.get_nearby_characters()
+    assert game.continuous_effect_system.get_effects(target) == [effect]
+
+
+def test_regular_move_still_removes_movement_effect():
+    actor = Target("行动者")
+    target = Target("目标")
+    game = GameBackend([actor, target])
+    effect = ContinuousEffect(
+        "移动后消失",
+        -1,
+        lambda _: None,
+        removal_condition=RemovalCondition.ON_MOVEMENT,
+    )
+    game.continuous_effect_system.add_effect(actor, effect)
+
+    result = game.move_character_to_block(actor, target.block_id)
+
+    assert result["success"] is True
+    assert game.continuous_effect_system.get_effects(actor) == []
+
+
+def test_robot_registration_keeps_roster_and_board_in_sync():
+    scientist = Scientist("科学家")
+    game = GameBackend([scientist, Target("目标")])
+    scientist.add_resource("电池", 4)
+    scientist.set_pending_robot_name("一号")
+
+    assert game.execute_player_action(scientist, "skill:制造机器人")
+
+    robot = scientist.get_named_robots()[0]
+    assert robot in game.all_characters
+    assert robot in game.alive_characters
+    assert robot in game.get_block_members(scientist.block_id)
+    assert robot in scientist.get_nearby_characters()
+    assert scientist in robot.get_nearby_characters()
+
+
+def test_reset_rebinds_replacement_characters_to_board_state():
+    old_actor = Target("行动者")
+    game = GameBackend([old_actor, Target("目标")])
+
+    game.reset_game()
+
+    new_actor, new_target = game.all_characters
+    assert new_actor is not old_actor
+    new_actor.set_block_id(new_target.block_id)
+    assert new_actor in new_target.get_nearby_characters()
+    assert new_target in new_actor.get_nearby_characters()
+
+    old_actor.set_block_id(new_target.block_id)
+    assert old_actor not in new_target.get_nearby_characters()
 
 
 def test_round_pipeline_exposes_stable_phase_order(monkeypatch):
